@@ -1,0 +1,39 @@
+#!/bin/bash
+# updateScripts -- copy the shared library scripts we depend on from the
+# raylib-miniscript source tree into disk/lib.
+#
+# We copy rather than symlink because the Mini Micro filesystem sandbox
+# rejects any path that resolves outside its mount root -- by design.
+#
+# Re-run this whenever the upstream sources change.
+
+set -e
+
+here=$(cd "$(dirname "$0")" && pwd)
+dest="$here/../disk/lib"
+src="$here/../../raylib-miniscript/assets"
+
+if [ ! -d "$src" ]; then
+	echo "error: can't find raylib-miniscript assets at $src" >&2
+	exit 1
+fi
+
+# Each entry is a path relative to the raylib-miniscript assets folder.
+scripts=(
+	physics.ms
+	physicsFallback.ms
+	lib/matrixUtil.ms
+)
+
+mkdir -p "$dest"
+for s in "${scripts[@]}"; do
+	from="$src/$s"
+	if [ ! -f "$from" ]; then
+		echo "error: missing $from" >&2
+		exit 1
+	fi
+	cp "$from" "$dest/$(basename "$s")"
+	echo "  updated $(basename "$s")"
+done
+
+echo "disk/lib is up to date."

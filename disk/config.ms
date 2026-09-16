@@ -1,0 +1,50 @@
+// config.ms
+// Screen layout, tuning constants, and the UI color scheme, all in one place.
+
+// The screen is 960 x 640: the playfield on the left, the panel on the right.
+fieldWidth = 760
+fieldHeight = 640
+panelLeft = 760
+panelWidth = 200
+
+// Parts snap so that their footprint lands on this lattice.  Part sizes are
+// multiples of it, so that neighbors abut exactly.  Positions themselves stay
+// floats; snapping happens only in the editor, on the way into spec.
+grid = 20
+
+// Height of the level floor, which is scenery rather than a placeable part.
+floorHeight = 40
+
+// The transport buttons live in a strip across the bottom of the panel.
+buttonBarHeight = 64
+buttonSize = 44
+
+// Palette layout.
+paletteRowHeight = 56
+paletteTitleHeight = 32
+
+// Physics.
+gravity = 980
+timestep = 1/60
+maxStepsPerFrame = 5
+
+// How deeply two parts must interpenetrate before we call it an overlap.
+// A little slack lets parts rest flush against each other without the
+// editor calling that a collision.
+overlapTolerance = 0.5
+
+// Colors.
+backdropColor = "#101820"
+fieldColor = "#E7D2C1"
+pegColor = "#243240"
+floorColor = "#5A4632"
+panelColor = "#2A3642"
+panelEdgeColor = "#4A5A6A"
+titleColor = "#C8D4E0"
+labelColor = "#A0B0C0"
+selectColor = "#50D0FF"
+badColor = "#FF4040"
+buttonColor = "#3C4C5C"
+buttonHiColor = "#5C7C9C"
+buttonIconColor = "#D8E4F0"
+buttonOffColor = "#32404C"

@@ -1,0 +1,87 @@
+# Contraption
+
+These are notes for a "The Incredible Machine" type game, where you arrange parts on a wall (pegboard) in addition to fixed parts for each puzzle, in order to complete some objective.
+
+## Physics (Dynamics)
+
+Virtually all objects participate in the physics collision/dynamics system.  Most objects are either fixed (static) or moveable.
+
+- fixed platforms
+- ramps
+- various balls (different size, weight, and elasticity)
+- various blocks (like balls but rectangular instead of round)
+- balloons (bouyant, burst under too much heat or when poked)
+
+## Electricity
+
+Electric objects have connection points for either a power cable (two conductors), or wires (single conductor).  Not sure yet how to make those distinct.
+
+- power outlet
+- battery
+- switch
+- resistor
+- capacitor (if we really want to get into R-C analog electronics!)
+- light bulb
+- motor
+- fan
+
+## Wheels/Gears/Belts
+
+Wheels can be connected with belts (which automatically resize to fit).  Gears are connected just by positioning them the right distance from each other.  Each gear/wheel has a *rotation* with speed and torque, transmitted through the connections.
+
+- wheels (various sizes)
+- gears (ditto)
+- fan
+- motor
+- generator (or maybe motor/generator is one?)
+
+## Wind
+
+Fans and bellows produce wind, which acts on flames and on very light objects that are nearby and in the right direction.  A windmill converts that to rotation.
+
+- fan
+- bellows
+- sail car
+- windmill
+
+## Light
+
+The room is normally lit (though it'd be cool if we could turn the room lights off).  But light sources (bulbs and candles) produce extra light within a small area, which can produce power in solar panels, and be focused through a lens to produce heat.
+
+- light bulb
+- candle
+- solar panel
+- lens
+
+## Flame
+
+Flammable things ignite when exposed to sufficient heat (unless the room air is set to vacuum).  Flames produce light and heat.  A few other things can also light flammables, e.g., we might have flint & steel, an explicit lighter, or a magic effect.
+
+- candle
+- fuse (burns slowly)
+- rocket
+- boiler
+
+## Steam
+
+The main elements here are a boiler (which produces pressure when heated) and pipes, which transmit pressure.
+
+- boiler
+- pipes
+- valve
+- piston (extends when pressurized)
+- engine (converts pressure to rotation)
+
+## Creatures
+
+We'll have a handful of creatures with complex behaviors, following their own utility functions to move around and interact with other objects.
+
+- mouse hole: emits one mouse if things have been quiet for several seconds, and there is cheese nearby.  Runs to the cheese.  Upon any threat (cat, loud noise, high heat), runs back to its hole.
+- cat: starts asleep, wakes upon contact or loud noise.  Chases mouse and clockwork mouse; pushes things off of platforms and ledges.
+- demon: adorable little guy like Beastie the BSD Daemon.  Appears in the Pentagram when all five candles have been lit; runs around the board causing mischief.  Loves to pop balloons, cut ropes, and light flammables.  Disappears if any of the 5 candles are extinguished, or if it can find no more mischief to do.
+
+## Magic
+
+There are lots of ways we could go here, but a simple one is:
+
+- magic wand: a gloved hand holding a wand, which can be rotated in standard increments to point in various directions.  When tapped, the wand shoots a projectile of sparks which have various effects: ignite flammables, cause movable objects to levitate for a while, and cause static objects to briefly disappear.  Include fun animations like the cat freaking out when it levitates.  Consider some materials that the projectile bounces off of, allowing puzzles with banked shots.
