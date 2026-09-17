@@ -451,6 +451,92 @@ Rope.collideChain = function
 end function
 
 //----------------------------------------------------------------------
+// Cutting
+//----------------------------------------------------------------------
+
+// The line the rope is actually drawn along, together with the two things a
+// cut has to know about it: which vertex each tie point sits on, and how
+// much *rope* lies between consecutive vertices.  Hanging, that is the beads
+// and their rest lengths.  Taut, it is the straight runs between the tie
+// points, and the rope is shared out along them in proportion, so that the
+// pieces of a cut rope still add up to the whole.
+Rope.polyline = function
+	if self.chain != null and self.pins != null then
+		return {"pts": self.chain, "pins": self.pins, "rest": self.linkRest}
+	end if
+	path = self.path
+	if path == null or path.len < 2 then return null
+	geo = self.pathLength(path)
+	if geo < 0.0001 then return null
+	f = self.spec.length / geo
+	rest = []
+	pins = []
+	for i in range(0, path.len - 1, 1)
+		pins.push i
+		if i == 0 then continue
+		rest.push f * sqrt((path[i][0] - path[i-1][0]) ^ 2 +
+		  (path[i][1] - path[i-1][1]) ^ 2)
+	end for
+	return {"pts": path, "pins": pins, "rest": rest}
+end function
+
+// Cut the rope between vertices i and i+1 of that line, `t` of the way along.
+// What is left is up to two ropes, each still made fast wherever it still has
+// a tie point and loose at the cut, and the rope itself is taken out of the
+// world.  A piece with no tie point left at all -- the far end of something
+// that was already hanging free -- simply falls away.
+//
+// Whoever does the cutting must queue it rather than call this during a step:
+// see GameWorld.cutRope.
+Rope.cutAt = function(i, t)
+	w = self.world
+	if w == null or w.partById(self.id) == null then return []
+	pl = self.polyline
+	if pl == null or i >= pl.rest.len then return []
+	rest = pl.rest
+	before = rest[i] * t
+	for k in range(0, i - 1, 1)
+		before = before + rest[k]
+	end for
+	after = self.spec.length - before
+	if before < 0 then before = 0
+	if after < 0 then after = 0
+	// A tie point sitting on vertex i or earlier is on the near side of the
+	// cut; everything after it goes with the far piece.
+	n = 0
+	for k in pl.pins.indexes
+		if pl.pins[k] <= i then n = k + 1
+	end for
+	pts = self.spec.points
+	head = pts[:n]
+	// The far piece is tied at what was the rope's far end and loose at the
+	// cut, so its points run backwards: a free-ended rope hangs its slack
+	// from the last tie point in the list.
+	tail = []
+	for k in range(pts.len - 1, n, -1)
+		tail.push pts[k]
+	end for
+	w.removePart self
+	out = []
+	if head then out.push self.makePiece(w, head, before)
+	if tail then out.push self.makePiece(w, tail, after)
+	return out
+end function
+
+// One piece of a cut rope: tied where it still can be, loose from there on.
+Rope.makePiece = function(w, points, length)
+	pts = []
+	for p in points
+		pts.push {} + p
+	end for
+	r = Rope.make({"points": pts, "freeEnd": true, "fixedLength": true,
+	  "color": self.spec.color})
+	w.addPart r
+	r.spec.length = length
+	return r
+end function
+
+//----------------------------------------------------------------------
 // Drawing
 //----------------------------------------------------------------------
 

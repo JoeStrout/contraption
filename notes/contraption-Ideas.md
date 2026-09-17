@@ -6,13 +6,14 @@ These are notes for a "The Incredible Machine" type game, where you arrange part
 
 Virtually all objects participate in the physics collision/dynamics system.  Most objects are either fixed (static) or moveable.
 
-- fixed platforms
-- ramps
-- various balls (different size, weight, and elasticity)
-- various blocks (like balls but rectangular instead of round)
-- balloons (bouyant, burst under too much heat or when poked)
-- levers (a rigid bar on a fixed fulcrum; seesaws, and off-center levers that trade travel for force)
-- balances (a lever carrying a level pan at each end; a ball rides a pan until the other end is loaded)
++ fixed platforms
+- ramps (or adjustable platforms that can be made into ramps)
++ various balls (different size, weight, and elasticity)
++ various blocks (like balls but rectangular instead of round)
++ balloons (bouyant, burst under too much heat or when poked)
++ levers (a rigid bar on a fixed fulcrum; seesaws, and off-center levers that trade travel for force)
++ balances (a lever carrying a level pan at each end; a ball rides a pan until the other end is loaded)
+- ballternator -- flips back or forth on each ball drop, alternating which way it sends the ball
 
 ## Electricity
 

@@ -18,6 +18,13 @@ TiePoint.tieLocals = function
 	return [[0, 0]]
 end function
 
+// The eye is the part, so it is the eye that goes on the peg: snapping the
+// footprint instead would sit it half its own width off every time, which is
+// what makes a level rope between two of them impossible to lay.
+TiePoint.snapPose = function(world, x, y)
+	return world.pegSnap(self, x, y)
+end function
+
 TiePoint.makeBodies = function
 	s = self.spec
 	b = self.addBody

@@ -34,6 +34,9 @@ GameWorld.make = function(partDisp)
 	w.pairScratch = Matrix.ofSize(0, 2)
 	w.contactScratch = Matrix.ofSize(0, core.ContactColumns)
 	w.leftover = 0      // unconsumed real time, carried between frames
+	w.ropeCuts = []     // cuts asked for mid-step; see cutRope
+	w.snapshot = null   // the design as it was when play began
+	w.partsChanged = false
 	return w
 end function
 
@@ -45,6 +48,7 @@ GameWorld.addPart = function(p)
 	self.parts.push p
 	self.byId[p.id] = p
 	if p.isRope then self.ropes.push p
+	if self.mode != GameWorld.DESIGN then self.partsChanged = true
 	p.build self
 	self.raiseFrontParts
 	return p
@@ -82,6 +86,7 @@ GameWorld.removePart = function(p)
 	self.parts.remove idx
 	self.byId.remove p.id
 	if p.isRope then util.removeRef self.ropes, p
+	if self.mode != GameWorld.DESIGN then self.partsChanged = true
 	for d in doomed
 		self.removePart d
 	end for
@@ -196,12 +201,28 @@ GameWorld.gridSnap = function(p, x, y)
 	return [left + sz[0] / 2, bottom + sz[1] / 2]
 end function
 
+// Snap a proposed center position onto the pegboard lattice itself, instead
+// of lining the part's footprint up with it.  For a part whose whole point is
+// the single spot at its middle -- a tie point is one -- that middle is what
+// has to land on a peg, and gridSnap would leave it half a footprint off, so
+// that ropes run between pegs rather than along them.
+GameWorld.pegSnap = function(p, x, y)
+	g = config.grid
+	return [round(x / g) * g, round(y / g) * g]
+end function
+
 //----------------------------------------------------------------------
 // Modes
 //----------------------------------------------------------------------
 
 GameWorld.play = function
 	if self.mode == GameWorld.DESIGN then
+		// Play may destroy parts -- scissors cut a rope in two, and a balloon
+		// will one day pop -- and Stop has to be able to put them back.
+		// Nothing else can restore a part that no longer exists, so the whole
+		// design is written out here and read back if anything went.
+		self.snapshot = self.save
+		self.partsChanged = false
 		for p in self.parts
 			p.onPlay
 		end for
@@ -216,9 +237,16 @@ end function
 GameWorld.stop = function
 	if self.mode == GameWorld.DESIGN then return
 	self.mode = GameWorld.DESIGN
+	self.ropeCuts = []
 	for p in self.parts
 		p.onStop
 	end for
+	// Mode is DESIGN again first, so that rebuilding does not itself look
+	// like a change made during play.
+	if self.partsChanged and self.snapshot != null then
+		self.load self.snapshot
+		self.partsChanged = false
+	end if
 	// A second pass, because a part that rides on another can only be put
 	// back once the part underneath it has been.
 	for p in self.parts
@@ -254,9 +282,28 @@ GameWorld.advance = function(elapsed)
 			p.settle dt
 			p.update dt
 		end for
+		if self.ropeCuts then self.applyRopeCuts
 	end for
 	for p in self.parts
 		p.syncSprites
+	end for
+end function
+
+// Cut a rope in two, between vertices i and i+1 of the line it is drawn
+// along (see Rope.polyline), `t` of the way along that link.
+//
+// Queued rather than done on the spot, because whoever asks for it is a part
+// in the middle of its own update hook, and cutting adds and removes parts --
+// which would shift the very list advance is walking.
+GameWorld.cutRope = function(rope, i, t)
+	self.ropeCuts.push [rope, i, t]
+end function
+
+GameWorld.applyRopeCuts = function
+	cuts = self.ropeCuts
+	self.ropeCuts = []
+	for c in cuts
+		c[0].cutAt c[1], c[2]
 	end for
 end function
 

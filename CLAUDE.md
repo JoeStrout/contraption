@@ -55,15 +55,19 @@ disk/            mounted as /usr; the game
   contraption.ms   entry point: displays, level scenery, main loop
   config.ms        layout, tuning, colors -- all magic numbers live here
   part.ms          the Part base class
-  parts.ms         Ball, Block, Platform, Lever, Balance, Weight, TiePoint,
-                   Pulley, MountedPulley; the registry and palette catalog
-  rope.ms          the Rope part: its constraint, its beads, and its drawing
+  parts.ms         the registry and the palette catalog; imports parts/
+  parts/           one module per type: balls, block, platform, lever,
+                   balance, weight, balloon, basket, scissors, tiePoint,
+                   pulleys, and rope
+  parts/rope.ms    the Rope part: its constraint, its beads, its drawing,
+                   and how it comes apart when something cuts it
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
   artUtil.ms       procedurally drawn art, and its cache
   util.ms          identity-based list operations
-  pics/            pre-rendered art: the ball sprite sheets
+  pics/            pre-rendered art: the ball sprite sheets, the balloon,
+                   the basket, and the scissors' eight poses
   lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
 tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
 art-sources/     Blender sources for disk/pics (see balls/README.md), and
@@ -106,6 +110,15 @@ because by `update` the step has already been solved.
 `GameWorld.DESIGN / PLAY / PAUSED`.  Only PLAY steps physics, at a fixed
 `config.timestep` against an accumulator capped at `maxStepsPerFrame`.  Design
 mode never steps but still needs collision, to reject overlapping placements.
+
+Play may *destroy* parts -- scissors cut a rope into two loose ones, and a
+balloon will one day pop -- and Stop still has to put the design back.  Putting
+the bodies where the spec says is no help for a part that no longer exists, so
+`play` writes the whole design out with `save`, `addPart` / `removePart` note
+that something changed, and `stop` reads it back if anything did.  A part that
+wants to add or remove parts mid-step must queue the work rather than do it,
+because `advance` is walking the very list it would be changing; `cutRope` /
+`applyRopeCuts` is that queue.
 
 ### A few things about the physics engine
 
