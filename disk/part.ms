@@ -299,7 +299,14 @@ Part.settle = function(dt)
 	end for
 end function
 
-// Per-step simulation that physics does not do for us.  Play mode only.
+// Get ready for the step about to run.  Anything the solver has to be told
+// before it solves belongs here, because by `update` it is too late.
+Part.preStep = function(dt)
+	self.softenBounce
+end function
+
+// Per-step simulation that physics does not do for us, once the step has
+// run.  Play mode only.
 Part.update = function(dt)
 end function
 

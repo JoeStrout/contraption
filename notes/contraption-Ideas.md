@@ -11,6 +11,8 @@ Virtually all objects participate in the physics collision/dynamics system.  Mos
 - various balls (different size, weight, and elasticity)
 - various blocks (like balls but rectangular instead of round)
 - balloons (bouyant, burst under too much heat or when poked)
+- levers (a rigid bar on a fixed fulcrum; seesaws, and off-center levers that trade travel for force)
+- balances (a lever carrying a level pan at each end; a ball rides a pan until the other end is loaded)
 
 ## Electricity
 

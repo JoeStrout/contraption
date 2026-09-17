@@ -55,7 +55,7 @@ disk/            mounted as /usr; the game
   contraption.ms   entry point: displays, level scenery, main loop
   config.ms        layout, tuning, colors -- all magic numbers live here
   part.ms          the Part base class
-  parts.ms         Ball, Block, Platform; the registry and palette catalog
+  parts.ms         Ball, Block, Platform, Lever, Balance; registry and catalog
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
@@ -95,15 +95,19 @@ Subclassing is `Ball = new Part`, extending `defaultSpec` with map addition.
 Every mutable per-instance field is assigned fresh in `Part.make`; a list left
 on the class would be shared by every instance.
 
+`GameWorld.advance` calls `Part.preStep` on every part before each step and
+`Part.update` after it.  Anything the solver must be told goes in `preStep`,
+because by `update` the step has already been solved.
+
 ### Modes
 
 `GameWorld.DESIGN / PLAY / PAUSED`.  Only PLAY steps physics, at a fixed
 `config.timestep` against an accumulator capped at `maxStepsPerFrame`.  Design
 mode never steps but still needs collision, to reject overlapping placements.
 
-### Three things about the physics engine
+### A few things about the physics engine
 
-All three are worked around in our code; `physics.ms` is used unmodified.
+All of them are worked around in our code; `physics.ms` is used unmodified.
 
 - `findPairs` discards any pair where neither body is dynamic, so two static
   parts are invisible to each other.  **Design mode therefore creates every
@@ -123,6 +127,28 @@ All three are worked around in our code; `physics.ms` is used unmodified.
   assumes a different scale: gravity 980 px/s^2 makes a meter 100 pixels, so
   30 is 0.3 m/s -- slow enough that the solver's own overlap bias keeps a
   ball above it indefinitely.
+- There are **no joints**.  A part that needs one keeps it itself, in
+  `Part.update`, by projecting its bodies back onto the constraint after each
+  step -- see `Lever`, which pins its bar to a fulcrum by putting the body
+  back on the pivot and replacing its velocity with the single turn about
+  that pivot carrying the same momentum in the one degree of freedom it has
+  left.  That is what makes a blow to one end come out as spin rather than
+  being thrown away, and it is exact rather than approximate.  `Balance`
+  extends it through four hooks (`pinRiders`, `momentum`,
+  `generalizedMass`, `applySpin`): its pans are held level on the ends of
+  the bar and join the same one degree of freedom.
+- A projected constraint is invisible to the solver, which is a problem when
+  something lands on the constrained part: the solver works the impulse out
+  against that one body's own mass, not against the assembly behind it.  On
+  a balance pan that is a factor of nine, and it eats the impulse.  So
+  `Balance.preStep` tells the solver a lie -- the pan's mass becomes the
+  assembly's moment over its arm squared, which is what the assembly really
+  resists with there -- and `Balance.momentum` unpicks it: what a pan was
+  already carrying counts at its real mass, what the step just added to it
+  counts at the mass the solver used, because that product is the impulse
+  and the impulse is real.  A part whose mass is a fiction cannot also be
+  given weight from it, so a pan's gravity is off and `preStep` hangs its
+  real weight on the bar instead.
 - The overlap query (`GameWorld.overlapping`) calls `findPairs` and
   `collidePairs` directly, with margin 0, into scratch matrices, and looks for
   `ColSep < -config.overlapTolerance`.  It deliberately does not call

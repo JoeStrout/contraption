@@ -175,10 +175,11 @@ GameWorld.advance = function(elapsed)
 	self.leftover = self.leftover - steps * dt
 	if self.leftover > dt then self.leftover = dt
 	for i in range(1, steps, 1)
-		// Restitution first: softenBounce sets what the step about to run
-		// will bounce with, from the speed the part carries into it.
+		// Parts first: preStep is where they set up what the step about to
+		// run must see -- the restitution a bounce will use, the inertia a
+		// lever's pan presents to something landing on it.
 		for p in self.parts
-			p.softenBounce
+			p.preStep dt
 		end for
 		self.phys.step dt
 		for p in self.parts

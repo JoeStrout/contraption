@@ -79,3 +79,24 @@ buttonOffColor = "#32404C"
 picsDir = "/usr/pics/"
 ballSheetCols = 8
 ballFrameCount = 64
+
+// Collision filtering.  Two shapes collide only if each one's category bit
+// is in the other's mask.  The pieces of a lever are the only things that
+// must ignore each other: the bar pivots right at the fulcrum's apex and
+// carries its balance pans a couple of pixels clear, so all three would
+// otherwise grind together for the whole of the bar's travel.  This filters
+// a bar against every fulcrum and pan rather than just its own, which costs
+// us nothing: no piece of a lever leaves its own part's footprint sideways,
+// and design mode does not let two footprints overlap.
+catDefault = 1
+catFulcrum = 2
+catPan = 4
+maskBar = 65535 - catFulcrum - catPan
+maskFulcrum = 65535 - catPan
+maskPan = 65535 - catFulcrum
+
+// How far a lever may tip, if its own geometry does not stop it sooner, and
+// how much steeper than that its fulcrum's sides are drawn, so that the bar
+// never looks like it is cutting into the apex.
+leverMaxTilt = 40 * pi / 180
+leverFulcrumFlare = 20 * pi / 180
