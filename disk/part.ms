@@ -27,13 +27,15 @@ Part.typeName = "part"              // registry key; what a save file records
 Part.displayName = "Part"
 Part.bodyType = physics.DYNAMIC     // body type applied when play begins
 Part.fixed = false                  // level scenery: not draggable or deletable
-Part.defaultSpec = {"x": 0, "y": 0, "angle": 0}
+Part.defaultSpec = {"x": 0, "y": 0, "angle": 0,
+  "linearDamping": 0, "angularDamping": 0, "bounceSoftSpeed": 0}
 
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
 Part.sprites = null
 Part.spriteDisp = null              // the display our sprites are currently on
 Part.world = null                   // the GameWorld we belong to
+Part.settleTime = 0                 // runtime: seconds spent barely moving
 
 //----------------------------------------------------------------------
 // Construction
@@ -47,6 +49,7 @@ Part.make = function(spec=null)
 	if spec != null then p.spec = p.spec + spec
 	p.bodies = []
 	p.sprites = []
+	p.settleTime = 0
 	p.init
 	return p
 end function
@@ -88,6 +91,7 @@ Part.addBody = function(dx=0, dy=0)
 	b.part = self
 	b.localX = dx
 	b.localY = dy
+	b.setDamping self.spec.linearDamping, self.spec.angularDamping
 	self.bodies.push b
 	self.placeBody b
 	return b
@@ -228,11 +232,71 @@ end function
 // Back to design mode: everything dynamic again (see addBody), bodies back
 // where spec says.  Subclasses with runtime state clear it here.
 Part.onStop = function
+	self.settleTime = 0
+	self.resetBounce
 	for b in self.bodies
 		b.setType physics.DYNAMIC
 	end for
 	self.placeBodies
 	self.syncSprites
+end function
+
+// Fade a part's bounce out as it slows down.  A real ball is less elastic the
+// slower it hits -- the energy a bounce loses to squashing does not scale
+// with the energy it has -- while one constant restitution bounces the same
+// fraction forever, which is what leaves a lively ball pattering away in
+// ever-smaller, ever-faster hops it never quite finishes.  Fading it means
+// the last few bounces get shorter fast, and at the bottom restitution
+// reaches zero, so the velocity the solver's overlap bias hands a resting
+// part has nothing left to bounce off.
+//
+// The solver reads restitution off the shape, so this rewrites it every step
+// from the part's current speed; spec.restitution stays the authored value.
+// Parts that leave bounceSoftSpeed at 0 keep a constant restitution.
+Part.softenBounce = function
+	s = self.spec
+	if s.bounceSoftSpeed <= 0 then return
+	for b in self.bodies
+		f = sqrt(b.vx * b.vx + b.vy * b.vy) / s.bounceSoftSpeed
+		if f > 1 then f = 1
+		for sh in b.shapes
+			sh.setRestitution s.restitution * f
+		end for
+	end for
+end function
+
+// Put the authored restitution back, for when play ends.
+Part.resetBounce = function
+	s = self.spec
+	if s.bounceSoftSpeed <= 0 then return
+	for b in self.bodies
+		for sh in b.shapes
+			sh.setRestitution s.restitution
+		end for
+	end for
+end function
+
+// Crush the residual jitter of a part that has come to rest.  See the
+// settle* constants in config for why this damps rather than freezes.
+//
+// This is deliberately per-part rather than per-body: a part is one object,
+// and settling half of a multi-body part would tear it.
+Part.settle = function(dt)
+	if self.bodyType != physics.DYNAMIC then return
+	for b in self.bodies
+		if b.vx * b.vx + b.vy * b.vy > config.settleSpeed ^ 2 or
+		   abs(b.angularVelocity) > config.settleSpin then
+			self.settleTime = 0
+			return
+		end if
+	end for
+	self.settleTime = self.settleTime + dt
+	if self.settleTime < config.settleDelay then return
+	k = config.settleDamp
+	for b in self.bodies
+		b.setVelocity b.vx * k, b.vy * k
+		b.setAngularVelocity b.angularVelocity * k
+	end for
 end function
 
 // Per-step simulation that physics does not do for us.  Play mode only.

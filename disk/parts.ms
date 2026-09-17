@@ -13,8 +13,12 @@ import "physics"
 globals.Ball = new Part
 Ball.typeName = "ball"
 Ball.displayName = "Ball"
-Ball.defaultSpec = Part.defaultSpec + {"radius": 20, "color": "#E08828",
-  "restitution": 0.55, "density": 1, "friction": 0.4}
+// Damping is what stands in for the losses a real ball has and a 2D impulse
+// solver does not: a circle on a flat floor has nothing to stop its spin, so
+// without angular damping a bouncy ball rolls forever.
+Ball.defaultSpec = Part.defaultSpec + {"radius": 20, "sheet": "ball-bowling",
+  "color": "#E08828", "restitution": 0.55, "density": 1, "friction": 0.4,
+  "linearDamping": 0.05, "angularDamping": 0.3, "bounceSoftSpeed": 250}
 
 Ball.size = function
 	return [self.spec.radius * 2, self.spec.radius * 2]
@@ -28,11 +32,65 @@ Ball.makeBodies = function
 	sh.setFriction s.friction
 end function
 
-Ball.imageKey = function
-	return "ball:" + self.spec.radius + ":" + self.spec.color
+//----------------------------------------------------------------------
+// Appearance.  A ball is drawn from a pre-rendered sheet of 64 views of the
+// same sphere, one per 360/64 degrees of spin, rather than by rotating one
+// picture: a rotated flat disc reads as a spinning coin, while the sheet has
+// real shading that stays put while the pattern turns.
+//
+// The sheet's cell size is the ball's diameter (the sphere is framed edge to
+// edge), so the sprite never needs scaling and `radius` is what picks which
+// sheet of a given ball we load.
+//----------------------------------------------------------------------
+
+Ball.sheetPath = function
+	return config.picsDir + self.spec.sheet + "_" + config.ballSheetCols +
+	  "x" + config.ballSheetCols + "_" + round(self.spec.radius * 2) + ".png"
 end function
 
+// The 64 frames, or null if there is no sheet for this ball yet -- in which
+// case we fall back to the procedural art below.
+Ball.frames = function
+	return artUtil.frames(self.sheetPath, round(self.spec.radius * 2),
+	  config.ballSheetCols, config.ballFrameCount)
+end function
+
+// Which frame shows the ball turned `angle` radians counterclockwise.
+Ball.frameIndex = function(angle)
+	n = config.ballFrameCount
+	idx = round(angle * n / (2 * pi)) % n
+	if idx < 0 then idx = idx + n
+	return idx
+end function
+
+// Each sprite shows the frame matching its body's rotation, and is itself
+// left unrotated -- the frame already carries the rotation.
+Ball.syncSprites = function
+	fr = self.frames
+	if fr == null then
+		super.syncSprites
+		return
+	end if
+	for i in self.sprites.indexes
+		if i >= self.bodies.len then break
+		b = self.bodies[i]
+		sp = self.sprites[i]
+		sp.x = b.x
+		sp.y = b.y
+		sp.rotation = 0
+		sp.image = fr[self.frameIndex(b.angle)]
+	end for
+end function
+
+Ball.imageKey = function
+	return "ball:" + self.spec.sheet + ":" + self.spec.radius + ":" +
+	  self.spec.color
+end function
+
+// The resting image: frame 0 of the sheet, which is also the palette icon.
 Ball.makeImage = function
+	fr = self.frames
+	if fr != null then return fr[0]
 	r = self.spec.radius
 	d = r * 2
 	g = artUtil.canvas(d, d)
@@ -150,11 +208,24 @@ end function
 //----------------------------------------------------------------------
 
 catalog = [
-	{"cls": Ball, "spec": {"radius": 20}, "label": "Ball"},
-	{"cls": Ball, "spec": {"radius": 30, "color": "#C04830"}, "label": "Big Ball"},
-	{"cls": Ball, "spec": {"radius": 10, "color": "#E0D040"}, "label": "Marble"},
+	{"cls": Ball, "spec": {"radius": 20, "sheet": "ball-bowling",
+	  "color": "#202028", "density": 3, "restitution": 0.15, "friction": 0.5,
+	  "linearDamping": 0.02, "angularDamping": 0.2, "bounceSoftSpeed": 150},
+	  "label": "Bowling Ball"},
+	{"cls": Ball, "spec": {"radius": 20, "sheet": "ball-soccer",
+	  "color": "#F0F0E8", "density": 0.6, "restitution": 0.55, "friction": 0.5,
+	  "linearDamping": 0.08, "angularDamping": 0.5, "bounceSoftSpeed": 250},
+	  "label": "Soccer Ball"},
+	{"cls": Ball, "spec": {"radius": 16, "sheet": "ball-star",
+	  "color": "#D8321F", "density": 1, "restitution": 0.8, "friction": 0.6,
+	  "linearDamping": 0.1, "angularDamping": 0.6, "bounceSoftSpeed": 300},
+	  "label": "Rubber Ball"},
+	{"cls": Ball, "spec": {"radius": 10, "sheet": "ball-tennis",
+	  "color": "#C8E040", "density": 0.7, "restitution": 0.75, "friction": 0.7,
+	  "linearDamping": 0.15, "angularDamping": 0.8, "bounceSoftSpeed": 250},
+	  "label": "Tennis Ball"},
 	{"cls": Block, "spec": {"width": 40, "height": 40}, "label": "Block"},
-	{"cls": Block, "spec": {"width": 80, "height": 20}, "label": "Plank"},
+	{"cls": Block, "spec": {"width": 100, "height": 20}, "label": "Plank"},
 	{"cls": Block, "spec": {"width": 20, "height": 80}, "label": "Post"},
 	{"cls": Platform, "spec": {"width": 120, "height": 20}, "label": "Platform"},
 	{"cls": Platform, "spec": {"width": 60, "height": 20}, "label": "Ledge"},

@@ -45,3 +45,34 @@ fillRoundRect = function(disp, left, bottom, width, height, radius, fillColor)
 	disp.fillEllipse left, bottom + height - d, d, d, fillColor
 	disp.fillEllipse left + width - d, bottom + height - d, d, d, fillColor
 end function
+
+// One pre-rendered sprite sheet, sliced into frames and cached by path.
+//
+// The ball sheets are laid out left to right, top to bottom, with frame i the
+// ball turned i * 360/count degrees counterclockwise -- the same sense as
+// Sprite.rotation.  See art-sources/balls/README.md.
+sheets = {}
+frames = function(path, size, cols=8, count=64)
+	if sheets.hasIndex(path) then return sheets[path]
+	sheet = file.loadImage(path)
+	result = null
+	if sheet != null then
+		result = []
+		rows = ceil(count / cols)
+		for i in range(0, count - 1, 1)
+			c = i % cols
+			r = floor(i / cols)
+			// Sheet rows read top-down, but getImage's y is bottom-up.
+			img = sheet.getImage(c * size, (rows - 1 - r) * size, size, size)
+			// Force the GPU upload now.  Image.texture is lazy, so otherwise
+			// each frame's first appearance would call LoadTextureFromImage
+			// from inside the render loop -- 64 uploads per sheet, spread
+			// over the first seconds of play, at whatever moment the ball
+			// happens to reach that angle.
+			img.texture
+			result.push img
+		end for
+	end if
+	sheets[path] = result
+	return result
+end function

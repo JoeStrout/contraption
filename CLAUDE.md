@@ -1,0 +1,173 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Context
+
+Contraption is a build-a-machine puzzle game in the spirit of *The Incredible
+Machine*, written in MiniScript for **Mini Micro 2**.  There is nothing to
+compile.
+
+It needs two sibling checkouts, and assumes this layout:
+
+```
+svnrepo/
+  contraption/          this repo
+  MiniMicro2/           the Mini Micro 2 system (see its CLAUDE.md)
+  raylib-miniscript/    the host, and the source of disk/lib
+```
+
+Scripts here have the Mini Micro API (`../MiniMicro2/assets/lib`) and the `/sys`
+disk (`../MiniMicro2/assets/sys`), *and* the raylib-miniscript extras: the
+intrinsic `Matrix` class and the `physicsCore` intrinsics.  API references:
+the MiniScript wiki at https://miniscript.org/wiki/ , and
+`../raylib-miniscript/API_DOC.md` for host intrinsics.
+
+Activate your MiniScript skill for general MiniScript language proficiency.
+
+## Running and checking
+
+Running it opens a window and needs a human to mount the disk, so **you cannot
+drive it from a tool call.**  Ask the user to run it:
+
+1. `../MiniMicro2/raylib-miniscript`
+2. mount the `disk` folder (it becomes `/usr`)
+3. `run "contraption"`
+
+What you *can* do is syntax-check, which catches a great deal:
+
+```bash
+echo "" | miniscript disk/part.ms 2>&1 | grep -i "compiler error"
+```
+
+`/usr/local/bin/miniscript` is the command-line MiniScript.  It has no `Matrix`
+intrinsic, so every module dies at the first physics call with `Undefined
+Identifier: 'Matrix'` — that is expected, and means parsing succeeded.  Only
+`Compiler Error` lines are real.  Imports do resolve, so the whole chain gets
+parsed.
+
+There are no tests and no lint step.
+
+## Layout
+
+```
+disk/            mounted as /usr; the game
+  contraption.ms   entry point: displays, level scenery, main loop
+  config.ms        layout, tuning, colors -- all magic numbers live here
+  part.ms          the Part base class
+  parts.ms         Ball, Block, Platform; the registry and palette catalog
+  gameWorld.ms     parts, physics, modes, collision queries, save/load
+  panel.ms         right-hand palette and transport buttons
+  editor.ms        design-mode interaction
+  artUtil.ms       procedurally drawn art, and its cache
+  util.ms          identity-based list operations
+  pics/            pre-rendered art: the ball sprite sheets
+  lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
+tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
+art-sources/     Blender sources for disk/pics (see balls/README.md), and
+                 art-attribution.txt, whose CC-BY credits must reach the game
+notes/           design notes: the parts eventually wanted, by category
+```
+
+**Never edit anything in `disk/lib`** — `tools/updateScripts` overwrites it from
+the raylib-miniscript source tree.  Changes belong upstream, or in our own code.
+They are copies rather than symlinks because the Mini Micro sandbox rejects any
+path resolving outside its mount root (`[fs] rejected ... outside its mount
+root`), which is deliberate.
+
+`matrixUtil.ms` must be among them: Mini Micro's own `/sys/lib/matrixUtil.ms` is
+an unrelated module that does `globals.Matrix = {}`, clobbering the intrinsic
+class `physics.ms` needs.  `env.importPaths` is `[".", "/usr/lib", "/sys/lib"]`,
+so our copy in `/usr/lib` shadows it.
+
+## Architecture
+
+### spec is the authored state
+
+A part's design-time state lives entirely in its `spec` map — `x`, `y`, `angle`,
+and whatever the type adds (`radius`, `color`, later `switchState`).  **Nothing
+in the running simulation may write to `spec`.**  That one rule is what makes
+Stop a matter of putting the bodies back where the spec says, and saving a
+matter of writing out `{type, spec}` per part.  Runtime state (lit, powered,
+charge) lives on the part itself, and `onStop` clears it.
+
+Subclassing is `Ball = new Part`, extending `defaultSpec` with map addition.
+Every mutable per-instance field is assigned fresh in `Part.make`; a list left
+on the class would be shared by every instance.
+
+### Modes
+
+`GameWorld.DESIGN / PLAY / PAUSED`.  Only PLAY steps physics, at a fixed
+`config.timestep` against an accumulator capped at `maxStepsPerFrame`.  Design
+mode never steps but still needs collision, to reject overlapping placements.
+
+### Three things about the physics engine
+
+All three are worked around in our code; `physics.ms` is used unmodified.
+
+- `findPairs` discards any pair where neither body is dynamic, so two static
+  parts are invisible to each other.  **Design mode therefore creates every
+  body DYNAMIC** (`Part.addBody`), and `onPlay` applies each part's real
+  `bodyType`.  Without this a platform could be placed straight through another.
+- There is **no sleeping**, restitution is one constant per shape, and a
+  circle on a flat floor has nothing to stop its spin -- so left alone, a
+  bouncy ball rolls forever and never finishes bouncing.  Three things answer
+  that, none of them in `physics.ms`: `linearDamping` / `angularDamping` in a
+  part's spec, applied in `Part.addBody`; `Part.softenBounce`, which rewrites
+  each shape's restitution every step from the part's speed, so a bounce
+  fades out instead of pattering; and `Part.settle`, which crushes the
+  velocity of a part that has barely moved for `config.settleDelay`.  Note
+  that `settle` damps hard rather than freezing, so a part whose support is
+  knocked away falls instead of hanging in the air.
+- `config.restitutionThreshold` replaces the engine's default of 30, which
+  assumes a different scale: gravity 980 px/s^2 makes a meter 100 pixels, so
+  30 is 0.3 m/s -- slow enough that the solver's own overlap bias keeps a
+  ball above it indefinitely.
+- The overlap query (`GameWorld.overlapping`) calls `findPairs` and
+  `collidePairs` directly, with margin 0, into scratch matrices, and looks for
+  `ColSep < -config.overlapTolerance`.  It deliberately does not call
+  `World.step`, which bails on `dt <= 0` and would advance things anyway.  Being
+  a real narrowphase, it stays correct for any shape we add later.
+
+### Coordinates
+
+Mini Micro screen coordinates throughout — y up, origin lower left — so gravity
+is `-config.gravity`.  `physics.ms` documents y-down but is agnostic; only the
+sign of gravity matters.  Body angles are radians CCW and `Sprite.rotation` is
+degrees CCW, so the conversion is just `* 180 / pi`.
+
+Snapping quantizes a part's *bounding-box corner*, not its center, so parts
+sized in multiples of `config.grid` abut exactly.  Positions stay floats;
+`GameWorld.snap` is the only place that quantizes.
+
+### Display layers
+
+Lower slot numbers draw on top.  1: the part being dragged (above the panel, so
+it does not slide under while crossing the edge).  2: the panel.  3: selection
+overlay.  4: placed parts.  5: pegboard and scenery.  7: backdrop.
+
+A part owns its sprites and knows which display holds them (`Part.spriteDisp`,
+`moveSpritesTo`), so `destroy` always finds them wherever the editor has put
+them.
+
+## MiniScript gotchas hit in this codebase
+
+- **`==` compares maps by value.**  `list.indexOf` will match two distinct parts
+  that merely look alike, and parts reference the world, which references the
+  parts list, so a deep compare is cyclic as well as wrong.  Anything meaning
+  "this exact object" goes through `util.ms` (`indexOfRef`, `removeRef`,
+  `containsRef`, `sameRef`), which wrap `refEquals`.
+- **`range(a, b)` counts *down* when `b < a`**, so `range(0, n-1)` with `n == 0`
+  yields `[0, -1]` rather than nothing.  Always pass the explicit step:
+  `range(0, n-1, 1)` correctly gives `[]`.
+- `PixelDisplay` has `line`, not `drawLine`.
+- `fillRect` blends with GL_ONE/GL_ZERO (a straight replace), so filling with a
+  transparent color genuinely erases.  Prefer it over `clear` for per-frame
+  erasing: `clear` reallocates the render texture when the size differs, and
+  passing the wrong size silently resizes the display.
+
+## Code Style
+
+- Tabs for indentation
+- Comments say *why*, not *what*; a module opens with a comment on its job
+- No emojis unless requested
