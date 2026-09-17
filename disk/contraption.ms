@@ -40,13 +40,13 @@ display(3).setMode displayMode.pixel       // selection box and handles
 overlayDisp = display(3)
 overlayDisp.clear color.clear, 960, 640
 
-display(4).setMode displayMode.sprite      // placed parts
-partDisp = display(4)
-partDisp.clear
-
-display(5).setMode displayMode.pixel       // ropes, behind the parts they tie
-ropeDisp = display(5)
+display(4).setMode displayMode.pixel       // ropes and belts, over the parts
+ropeDisp = display(4)                      // they are fastened to
 ropeDisp.clear color.clear, 960, 640
+
+display(5).setMode displayMode.sprite      // placed parts
+partDisp = display(5)
+partDisp.clear
 
 display(6).setMode displayMode.pixel       // pegboard and scenery
 bgDisp = display(6)
@@ -142,7 +142,7 @@ while not key.pressed("escape")
 	// Ropes draw themselves, in every mode: a slack one hangs while you are
 	// still building.
 	world.updateRopes elapsed
-	world.drawRopes ropeDisp
+	world.drawLinks ropeDisp
 
 	thePanel.trackMouse mouse.x, mouse.y, world.mode
 	thePanel.draw world.mode

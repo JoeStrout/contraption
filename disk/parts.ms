@@ -6,7 +6,7 @@ ensureImport ["config", "part", "artUtil", "physics", "util"]
 
 if not env.importPaths.hasIndex("/usr/parts") then env.importPaths.insert 0, "/usr/parts"
 ensureImport "balls block platform lever balance rope tiePoint pulleys".split +
-  "weight balloon basket scissors".split
+  "weight balloon basket scissors gears belts".split
 
 //----------------------------------------------------------------------
 // The registry, for loading a saved design.
@@ -63,6 +63,18 @@ catalog = [
 	{"cls": Balloon, "spec": {"color": "#FF4444"}, "label": "Balloon"},
 	{"cls": Basket, "spec": {}, "label": "Basket"},
 	{"cls": Scissors, "spec": {}, "label": "Scissors"},
+	{"cls": Gear, "spec": {"teeth": 12}, "label": "Small Gear"},
+	{"cls": Gear, "spec": {"teeth": 18}, "label": "Gear"},
+	{"cls": Gear, "spec": {"teeth": 24}, "label": "Large Gear"},
+	{"cls": Motor, "spec": {"dir": 1}, "label": "Motor (CCW)"},
+	{"cls": Motor, "spec": {"dir": -1}, "label": "Motor (CW)"},
+	{"cls": Spool, "spec": {}, "label": "Spool"},
+	{"cls": Wheel, "spec": {"radius": 20}, "label": "Small Wheel"},
+	{"cls": Wheel, "spec": {"radius": 30}, "label": "Wheel"},
+	{"cls": Wheel, "spec": {"radius": 40}, "label": "Large Wheel"},
+	{"cls": StepPulley, "spec": {}, "label": "Step Pulley"},
+	{"cls": Gearwheel, "spec": {}, "label": "Gearwheel"},
+	{"cls": Belt, "spec": {}, "label": "Belt"},
 	{"cls": TiePoint, "spec": {}, "label": "Tie Point"},
 	{"cls": Pulley, "spec": {}, "label": "Pulley"},
 	{"cls": MountedPulley, "spec": {}, "label": "Mounted Pulley"},

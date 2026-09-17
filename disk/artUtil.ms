@@ -92,3 +92,37 @@ multiply = function(a, b)
 	end for
 	return color.fromList(out)
 end function
+
+// A circle as a polygon, for fill and outline both.
+//
+// PixelDisplay.fillEllipse hands the job straight to raylib's DrawEllipse,
+// which is a fan of 36 triangles with its seam at angle 0 -- and one triangle
+// of it goes missing, so every circle of any size is drawn with a ten-degree
+// bite out of its right-hand side.  fillPoly next door is our own
+// triangulation, and it is careful about the culling and batching that
+// DrawEllipse is not, so anything big enough for the bite to show goes
+// through here instead.
+//
+// Segments are chosen to keep the flats under a tenth of a pixel, and capped,
+// since fillPoly's ear clipping is quadratic in the point count.
+circlePoints = function(cx, cy, r, segments=0)
+	if segments <= 0 then
+		segments = ceil(r * 1.2)
+		if segments < 12 then segments = 12
+		if segments > 48 then segments = 48
+	end if
+	pts = []
+	for i in range(0, segments - 1, 1)
+		a = 2 * pi * i / segments
+		pts.push [cx + r * cos(a), cy + r * sin(a)]
+	end for
+	return pts
+end function
+
+fillCircle = function(disp, cx, cy, r, fillColor, segments=0)
+	disp.fillPoly circlePoints(cx, cy, r, segments), fillColor
+end function
+
+drawCircle = function(disp, cx, cy, r, penColor, penSize=1, segments=0)
+	disp.drawPoly circlePoints(cx, cy, r, segments), penColor, penSize
+end function

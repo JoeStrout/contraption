@@ -134,3 +134,31 @@ mountSnap = 28              // ...and from one to mount a pulley on it
 tieRadius = 4
 tieColor = "#2A3642A0"
 tieHotColor = "#50D0FF"
+
+// Gears.  Teeth are not simulated: two gears mesh because their pitch circles
+// touch, and a set of meshed gears turns as one thing with one degree of
+// freedom -- see torque.ms.  The module is the pitch diameter per tooth, and
+// it is what lets gears of different sizes mesh with each other at all: 10/3
+// gives the 12, 18 and 24-tooth gears pitch radii of 20, 30 and 40 px, so
+// that a meshing pair has both its axles on the pegboard.
+gearModule = 10 / 3
+gearMeshTolerance = 2.5     // slop in the center distance that still meshes
+gearColor = "#8A94A2"
+gearHubColor = "#5A6672"
+gearMotorColor = "#C06038"
+gearArrowColor = "#FFE0A0"
+
+// Torque in engine units per newton-meter, for the parts that produce it.
+// Engine mass is density times area in pixels, so a kilogram is pxPerMeter^2
+// of it; an arm of one meter is pxPerMeter pixels, and torque is mass times
+// length squared over time squared -- hence pxPerMeter^4.
+torqueUnit = pxPerMeter ^ 4
+
+// Belts and the wheels they run on.  A belt is drawn as the two lines that
+// touch both wheels and the wrap at each end; what it does is a ratio, and
+// nothing else -- see torque.ms.
+beltColor = "#33343C"
+beltWidth = 4
+beltArcSteps = 16           // segments drawn around a wheel's wrap
+wheelColor = "#9AA4B0"
+wheelRimColor = "#4A5460"

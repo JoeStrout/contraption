@@ -78,13 +78,21 @@ Rope.chainPrev = null
 Rope.pins = null                    // bead index of each tie point
 Rope.pinned = null                  // those same indexes, as a set
 Rope.linkRest = null
+// Runtime: the length as it stands.  It is spec.length for every rope that
+// never changes length, which is all of them but the one wound on a spool --
+// and the spool is why it cannot simply be spec.length, since nothing in the
+// running simulation may write there.
+Rope.curLen = 0
+Rope.lenRate = 0        // and how fast a spool is letting it out, px/s
 
 Rope.init = function
 	self.pts = null
 	self.jac = null
 	self.tension = 0
 	self.chain = null
+	self.lenRate = 0
 	if self.spec.points == null then self.spec.points = []
+	self.curLen = self.spec.length
 end function
 
 //----------------------------------------------------------------------
@@ -143,8 +151,17 @@ Rope.remeasure = function
 	if self.spec.fixedLength then return
 	path = self.path
 	if path == null then return
-	self.spec.length = self.pathLength(path)
+	self.setLength self.pathLength(path)
 	self.chain = null
+end function
+
+// Give the rope a length, both as authored and as it stands.  Everything that
+// makes a rope goes through here, because a rope whose spec.length is set
+// without curLen following is one that starts play the right length and is
+// drawn the wrong one.
+Rope.setLength = function(n)
+	self.spec.length = n
+	self.curLen = n
 end function
 
 // The length a rope is made with is the path it was drawn along: a new rope
@@ -192,7 +209,7 @@ Rope.buildJacobian = function
 		dirs.push [dx / d, dy / d]
 		total = total + d
 	end for
-	self.stretch = total - self.spec.length
+	self.stretch = total - self.curLen
 	if self.stretch < -config.ropeSlop then
 		// Slack: nothing to solve, and no tension to carry into next step.
 		self.tension = 0
@@ -201,6 +218,7 @@ Rope.buildJacobian = function
 
 	rows = {}
 	order = []
+	rate = 0
 	pts = self.pts
 	for k in path.indexes
 		// How the path length changes as this point moves.  An end pulls
@@ -214,6 +232,14 @@ Rope.buildJacobian = function
 			cx = dirs[k-1][0] - dirs[k][0]
 			cy = dirs[k-1][1] - dirs[k][1]
 		end if
+		// Rope let out or taken in at an end: the constraint is that the
+		// path keeps up with the length, not that it stays put.
+		if k == 0 or k == n then rate = rate + pts[k][0].windRate(pts[k][1])
+		// A spool holds its own rope, and answers for it with the torque it
+		// puts on its train.  If the solver pulled on it as well, the rope
+		// would be as soft as the gear it is wound on, and the load would
+		// sag by a little every step.
+		if pts[k][0].ropeFixed then continue
 		tl = pts[k][0].tieList
 		if pts[k][1] >= tl.len then continue
 		b = tl[pts[k][1]][0]
@@ -248,6 +274,7 @@ Rope.buildJacobian = function
 		return false
 	end if
 	self.mEff = 1 / sum
+	self.lenRate = rate
 	self.jac = order
 	return true
 end function
@@ -263,7 +290,9 @@ Rope.solveOnce = function(dt)
 		b = row[0]
 		cdot = cdot + row[1] * b.vx + row[2] * b.vy + row[3] * b.angularVelocity
 	end for
-	want = self.tension + self.mEff * cdot
+	// The path must lengthen exactly as fast as the rope is being let out,
+	// which for everything but a spool means not at all.
+	want = self.tension + self.mEff * (cdot - self.lenRate)
 	if want < 0 then want = 0
 	delta = want - self.tension
 	self.tension = want
@@ -299,11 +328,20 @@ Rope.solvePosition = function
 	end for
 end function
 
+// A rope that was wound on or off during the run goes back to the length it
+// was drawn with, like every other piece of authored state.
+Rope.onPlay = function
+	super.onPlay
+	self.curLen = self.spec.length
+end function
+
 Rope.onStop = function
 	super.onStop
 	self.tension = 0
 	self.jac = null
 	self.chain = null
+	self.lenRate = 0
+	self.curLen = self.spec.length
 end function
 
 //----------------------------------------------------------------------
@@ -317,10 +355,14 @@ Rope.updateVisual = function(dt)
 		self.chain = null
 		return
 	end if
-	if self.spec.length - self.pathLength(path) <= config.ropeSlop then
+	if self.curLen - self.pathLength(path) <= config.ropeSlop then
 		self.chain = null
 		return
 	end if
+	// The beads hang from where the rope is drawn leaving the part rather than
+	// from the tie point inside it, so that nothing jumps when a taut rope
+	// goes slack.
+	path = self.trimEnds(path)
 	if self.chain == null then self.startChain path
 	self.stepChain path
 end function
@@ -340,10 +382,10 @@ Rope.startChain = function(path)
 	// simply straight and the whole of the slack is in the tail.
 	tail = 0
 	if self.spec.freeEnd then
-		tail = self.spec.length - geo
+		tail = self.curLen - geo
 		if tail < 0 then tail = 0
 	end if
-	share = self.spec.length - tail
+	share = self.curLen - tail
 	if geo < 0.0001 then geo = 0.0001
 	for k in range(0, path.len - 2, 1)
 		run = sqrt((path[k+1][0] - path[k][0]) ^ 2 +
@@ -468,7 +510,7 @@ Rope.polyline = function
 	if path == null or path.len < 2 then return null
 	geo = self.pathLength(path)
 	if geo < 0.0001 then return null
-	f = self.spec.length / geo
+	f = self.curLen / geo
 	rest = []
 	pins = []
 	for i in range(0, path.len - 1, 1)
@@ -498,7 +540,7 @@ Rope.cutAt = function(i, t)
 	for k in range(0, i - 1, 1)
 		before = before + rest[k]
 	end for
-	after = self.spec.length - before
+	after = self.curLen - before
 	if before < 0 then before = 0
 	if after < 0 then after = 0
 	// A tie point sitting on vertex i or earlier is on the near side of the
@@ -532,7 +574,7 @@ Rope.makePiece = function(w, points, length)
 	r = Rope.make({"points": pts, "freeEnd": true, "fixedLength": true,
 	  "color": self.spec.color})
 	w.addPart r
-	r.spec.length = length
+	r.setLength length
 	return r
 end function
 
@@ -550,7 +592,7 @@ Rope.draw = function(disp)
 		end for
 		return
 	end if
-	path = self.path
+	path = self.trimEnds(self.path)
 	if path == null then return
 	// Taut: straight runs between the tangent points of each wheel, and the
 	// wrap itself drawn around the rim.  The physics treats a pulley as a
@@ -580,6 +622,23 @@ Rope.draw = function(disp)
 		end for
 		from = arc[arc.len - 1]
 	end for
+end function
+
+// A rope that ends on a wheel -- a spool, or a pulley it is tied to rather
+// than routed over -- is drawn to the rim, not to the axle the physics treats
+// it as ending at.  Which point of the rim is the part's own business: see
+// Part.ropeExit, and Spool's, where the side it leaves on is the one thing
+// that says which way the drum winds.
+Rope.trimEnds = function(path)
+	if path == null or path.len < 2 then return path
+	n = path.len - 1
+	out = path[:]
+	for k in [0, n]
+		if k == 0 then far = out[1] else far = out[n-1]
+		p = self.pts[k][0].ropeExit(self.pts[k][1], far)
+		if p != null then out[k] = p
+	end for
+	return out
 end function
 
 // The points the rope actually touches, going around a wheel of radius r at

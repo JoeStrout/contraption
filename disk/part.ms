@@ -34,6 +34,12 @@ Part.mountsOnTie = false            // dropped on a tie point, not on the grid
 Part.drawsInFront = false           // kept at the top of the part layer; see
                                     // GameWorld.raiseFrontParts
 Part.wrapRadius = 0                 // pulleys: the wheel a rope bends around
+Part.turns = false                  // gears and wheels: a hub that turns with
+                                    // whatever it is linked to; see torque.ms
+Part.isBelt = false                 // belts are drawn and linked specially
+Part.ropeFixed = false              // a rope tied here is not pulled on by the
+                                    // rope solver: the part answers for it
+                                    // itself, as a spool does
 
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
@@ -125,6 +131,36 @@ Part.makeTies = function
 		b = self.bodies[bi]
 		self.ties.push [b, t[0] - b.localX, t[1] - b.localY]
 	end for
+end function
+
+// Subclass hook: where a rope that ends at tie point i is drawn leaving this
+// part, given the next point along the rope.  The physics has the rope ending
+// at the tie point itself, wherever that is; this is only the picture.
+//
+// The default is the near edge of whatever the rope wraps, which is right for
+// a wheel a rope is simply tied to, and nothing at all for a part with no
+// wrap radius.
+Part.ropeExit = function(i, toward)
+	w = self.tieWorld(i)
+	r = self.wrapRadius
+	if w == null or r <= 0 then return w
+	u = util.unit(toward[0] - w[0], toward[1] - w[1])
+	if u == null then return w
+	return [w[0] + u[0] * r, w[1] + u[1] * r]
+end function
+
+// Subclass hook: does a rope clicked at tie point i carry on over it, rather
+// than ending there?  Both a pulley's wheel and a spool's drum have a rim for
+// a rope to wrap, but only one of them is a place to route through.
+Part.ropeRoutes = function(i)
+	return self.wrapRadius > 0 and i == 0
+end function
+
+// Subclass hook: how fast this part is letting rope out at tie point i, in
+// pixels per second, negative to take it in.  A spool is the only thing that
+// does; for everything else a rope's length is its own business.
+Part.windRate = function(i)
+	return 0
 end function
 
 // Where tie point i has got to in the world.

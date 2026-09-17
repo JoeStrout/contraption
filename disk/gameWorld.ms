@@ -3,7 +3,7 @@
 // says whether it is moving at all.
 
 import "importUtil"
-ensureImport ["config", "physics", "part", "parts", "json", "util"]
+ensureImport ["config", "physics", "part", "parts", "torque", "json", "util"]
 
 // physicsCore is a native intrinsic where the host has one, and the
 // MiniScript fallback (reachable through the physics module) where it does
@@ -27,6 +27,7 @@ GameWorld.make = function(partDisp)
 	w.parts = []
 	w.byId = {}             // part id -> part, for the references ropes hold
 	w.ropes = []            // the parts with a constraint to solve
+	w.belts = []            // ...and the ones that are only drawn
 	w.mode = GameWorld.DESIGN
 	w.partDisp = partDisp
 	// Scratch matrices for the overlap query, reused so that dragging does
@@ -37,6 +38,8 @@ GameWorld.make = function(partDisp)
 	w.ropeCuts = []     // cuts asked for mid-step; see cutRope
 	w.snapshot = null   // the design as it was when play began
 	w.partsChanged = false
+	w.trains = []       // the gear trains, rebuilt whenever the design changes
+	w.torqueDirty = true
 	return w
 end function
 
@@ -48,7 +51,9 @@ GameWorld.addPart = function(p)
 	self.parts.push p
 	self.byId[p.id] = p
 	if p.isRope then self.ropes.push p
+	if p.isBelt then self.belts.push p
 	if self.mode != GameWorld.DESIGN then self.partsChanged = true
+	if p.turns or p.isBelt then self.torqueDirty = true
 	p.build self
 	self.raiseFrontParts
 	return p
@@ -86,6 +91,8 @@ GameWorld.removePart = function(p)
 	self.parts.remove idx
 	self.byId.remove p.id
 	if p.isRope then util.removeRef self.ropes, p
+	if p.isBelt then util.removeRef self.belts, p
+	if p.turns or p.isBelt then self.torqueDirty = true
 	if self.mode != GameWorld.DESIGN then self.partsChanged = true
 	for d in doomed
 		self.removePart d
@@ -205,10 +212,13 @@ end function
 // of lining the part's footprint up with it.  For a part whose whole point is
 // the single spot at its middle -- a tie point is one -- that middle is what
 // has to land on a peg, and gridSnap would leave it half a footprint off, so
-// that ropes run between pegs rather than along them.
-GameWorld.pegSnap = function(p, x, y)
-	g = config.grid
-	return [round(x / g) * g, round(y / g) * g]
+// that ropes run between pegs rather than along them.  `step` is for parts
+// that need a finer lattice than the pegs themselves: a gear's axle lands
+// between two pegs as readily as on one, because what it has to line up with
+// is the next gear, not the board.
+GameWorld.pegSnap = function(p, x, y, step=0)
+	if step <= 0 then step = config.grid
+	return [round(x / step) * step, round(y / step) * step]
 end function
 
 //----------------------------------------------------------------------
@@ -223,6 +233,7 @@ GameWorld.play = function
 		// design is written out here and read back if anything went.
 		self.snapshot = self.save
 		self.partsChanged = false
+		self.torqueDirty = true
 		for p in self.parts
 			p.onPlay
 		end for
@@ -238,6 +249,7 @@ GameWorld.stop = function
 	if self.mode == GameWorld.DESIGN then return
 	self.mode = GameWorld.DESIGN
 	self.ropeCuts = []
+	self.torqueDirty = true
 	for p in self.parts
 		p.onStop
 	end for
@@ -278,6 +290,7 @@ GameWorld.advance = function(elapsed)
 		end for
 		self.phys.step dt
 		self.solveRopes dt
+		self.solveTorque dt
 		for p in self.parts
 			p.settle dt
 			p.update dt
@@ -286,6 +299,33 @@ GameWorld.advance = function(elapsed)
 	end for
 	for p in self.parts
 		p.syncSprites
+	end for
+end function
+
+// Turn the gear trains through one step.  Each train is one degree of
+// freedom held by projection, exactly as a lever's bar is, so like the rope
+// solve this runs after the step whose contacts it has to answer for, and
+// before the parts' own update hooks.  See torque.ms.
+GameWorld.solveTorque = function(dt)
+	if self.torqueDirty then
+		self.trains = torque.build(self)
+		self.torqueDirty = false
+	end if
+	for t in self.trains
+		t.solve dt
+	end for
+end function
+
+// Design mode: stand every gear at the angle that has its teeth meshing with
+// its neighbors'.  Called when one is moved, because moving a gear can put it
+// in mesh with one thing and out of mesh with another, and the phases of a
+// whole train follow from wherever its first gear stands.
+GameWorld.alignGears = function
+	if self.mode != GameWorld.DESIGN then return
+	self.trains = torque.build(self)
+	self.torqueDirty = false
+	for t in self.trains
+		t.applyPhase
 	end for
 end function
 
@@ -348,8 +388,15 @@ GameWorld.updateRopes = function(dt)
 	end for
 end function
 
-GameWorld.drawRopes = function(disp)
+// Ropes and belts are drawn from their own geometry rather than from sprites,
+// onto the one layer above the parts -- so a rope lies over whatever it is
+// tied to, and a belt is visibly wrapped around its wheels rather than
+// vanishing behind their rims.
+GameWorld.drawLinks = function(disp)
 	disp.fillRect 0, 0, config.fieldWidth, config.fieldHeight, color.clear
+	for b in self.belts
+		b.draw disp
+	end for
 	for r in self.ropes
 		r.draw disp
 	end for
@@ -367,6 +414,43 @@ GameWorld.tiePoints = function
 		end for
 	end for
 	return out
+end function
+
+// The wheel under (x, y), as [part, 0, cx, cy] -- the same shape a tie point
+// comes back as, since running a belt is the same act as running a rope -- and
+// the index is which of the hub's grooves was picked, so a step pulley is run
+// exactly like anything else.  Only a hub with somewhere to put a belt
+// answers; see Gear.beltRings.
+GameWorld.hubAt = function(x, y)
+	best = null
+	bestD = 0
+	for p in self.parts
+		if not p.turns then continue
+		rings = p.beltRings
+		if not rings then continue
+		c = p.hubWorld
+		d = sqrt((c[0] - x) ^ 2 + (c[1] - y) ^ 2)
+		// Anywhere on the part will do, since the grooves of a step pulley
+		// are a few pixels apart and the outermost is its rim: what the click
+		// has to choose is which one, not whether.
+		lim = p.outerRadius
+		if rings[rings.len - 1] > lim then lim = rings[rings.len - 1]
+		if d > lim + 4 then continue
+		if best == null or d < bestD then
+			best = p
+			bestD = d
+		end if
+	end for
+	if best == null then return null
+	// Which groove: the one the click is nearest to, measured out from the
+	// axle.  Near the middle is the smallest, out at the rim the largest.
+	rings = best.beltRings
+	pick = 0
+	for i in rings.indexes
+		if abs(bestD - rings[i]) < abs(bestD - rings[pick]) then pick = i
+	end for
+	c = best.hubWorld
+	return [best, pick, c[0], c[1]]
 end function
 
 // The tie point nearest (x, y) within `range` px, or null.  `skip` leaves a

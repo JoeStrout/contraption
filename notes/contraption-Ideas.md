@@ -15,6 +15,16 @@ Virtually all objects participate in the physics collision/dynamics system.  Mos
 + balances (a lever carrying a level pan at each end; a ball rides a pan until the other end is loaded)
 - ballternator -- flips back or forth on each ball drop, alternating which way it sends the ball
 
+## Ropes and Pulleys
+
+Taut ropes transfer force direction.  Loose ones are decorative.
+
++ rope
++ free pulley
++ fixed/mounted pulley
++ scissors
++ basket
+
 ## Electricity
 
 Electric objects have connection points for either a power cable (two conductors), or wires (single conductor).  Not sure yet how to make those distinct.
@@ -32,10 +42,11 @@ Electric objects have connection points for either a power cable (two conductors
 
 Wheels can be connected with belts (which automatically resize to fit).  Gears are connected just by positioning them the right distance from each other.  Each gear/wheel has a *rotation* with speed and torque, transmitted through the connections.
 
-- wheels (various sizes)
-- gears (ditto)
++ wheels (various sizes), joined by belts; step pulleys, for the ratios; and a
+  spool, to put a load on a train
++ gears (12, 18 and 24 teeth; they mesh by being placed next to each other)
 - fan
-- motor
++ motor (constant torque, stalls under a heavier load; see notes/torque-parts.md)
 - generator (or maybe motor/generator is one?)
 
 ## Wind

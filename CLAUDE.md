@@ -57,10 +57,11 @@ disk/            mounted as /usr; the game
   part.ms          the Part base class
   parts.ms         the registry and the palette catalog; imports parts/
   parts/           one module per type: balls, block, platform, lever,
-                   balance, weight, balloon, basket, scissors, tiePoint,
-                   pulleys, and rope
+                   balance, weight, balloon, basket, scissors, gears,
+                   tiePoint, pulleys, and rope
   parts/rope.ms    the Rope part: its constraint, its beads, its drawing,
                    and how it comes apart when something cuts it
+  torque.ms        gear trains: which wheels turn together, and how fast
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
@@ -186,6 +187,58 @@ body, same offset -- and the order parts are built in says nothing about which
 part that is.  That also means a mounted pulley needs no joint and no body of
 its own: a rope over it pulls on its host, at the right point, by construction.
 
+### Torque: gears, wheels and belts
+
+A gear, a wheel and a spool are all one thing: a hub on a fixed axle that
+turns.  Hubs are *linked*, two ways.  Gears **mesh**, which is implicit --
+their pitch circles touch, nothing is authored, you place them and they
+engage.  Wheels are joined by a **belt**, which is explicit, because a belt
+reaches as far as it likes and only the player knows which two were meant; so
+a belt is a part that names two others, like a rope, and is run in the editor
+the same way.  Either link is only a ratio.
+
+What a belt can be fastened to is a rim or a groove -- `Gear.beltRings`, empty
+for a plain gear, whose teeth would chew one.  A **gearwheel** has teeth and a
+groove, which makes it the one part that is in a geared train and a belted one
+at once, and the join between the two ways of building.  A **step pulley** has
+three grooves, and is the only hub that takes power in at one radius and gives
+it out at another: since a train's ratio is the product of `R out / R in` over
+the hubs along it, and that is 1 for every single-radius hub, nothing else in
+a train can trade speed for force at all.  Which groove a belt runs in is part
+of what the belt records (`ra` / `rb`), and the editor picks it from where you
+click.
+
+A connected set of hubs is a *train*, and a train has exactly one degree of
+freedom, so it is held the way `Lever` holds its bar: after each step, read
+the train's momentum in that one coordinate, and put every hub back on its
+axle turning at the one rate that carries it.  `torque.ms` owns that over a
+graph of ratios, which is why the two kinds of link differ only in how the
+edges are found: the solver never learns which is which.
+
+The hub bodies are ordinary dynamic bodies between projections, which is what
+makes the transmission two-way: a ball dropped on a gear turns the train, and
+a turning train drags the ball along by friction.  The teeth themselves are
+art -- the shape the physics sees is a circle inside the pitch circle, so
+meshing gears never touch -- but they are *phased* like real teeth, at the
+moment a train is built, and that happens in design mode too
+(`GameWorld.alignGears`), so gears visibly snap into mesh as they are dragged.
+Axles snap to the half-peg lattice, because a meshing pair's centres are
+exactly the sum of its pitch radii apart and whole pegs cannot make every sum.
+A belt has no teeth to line up, so a belted wheel simply stays where it is.
+
+A **spool** is how a train gets a load: a gear with a drum, whose rope
+lengthens by `drumRadius * dtheta` as it turns and whose tension is
+`drumRadius` worth of torque back.  Two things about it are worth knowing.
+Its rope's length is runtime state (`Rope.curLen`), not `spec.length`, since
+spec is authored and this is not; and the solver does not pull on the spool
+itself (`Part.ropeFixed`) -- instead the spool hands the train the tension
+*and* the load's mass carried round to the rim, as a matched pair, because
+handing over the tension alone makes the drum and the rope whip each other
+apart inside a dozen steps.  `Spool.driveTorque` explains it in full.
+
+`notes/torque-parts.md` has the whole plan, including belts and the rough
+edges this leaves.
+
 ### Ropes
 
 See the header of `rope.ms`; the two things to know here are that a taut rope
@@ -215,9 +268,10 @@ sized in multiples of `config.grid` abut exactly.  Positions stay floats;
 
 Lower slot numbers draw on top.  1: the part being dragged (above the panel, so
 it does not slide under while crossing the edge).  2: the panel.  3: selection
-overlay, and the tie-point guides while a rope is being run.  4: placed parts.
-5: ropes, which therefore pass behind the parts they are tied to.  6: pegboard
-and scenery.  7: backdrop.
+overlay, and the tie-point guides while a rope is being run.  4: ropes and
+belts, which therefore lie over the parts they are fastened to -- a belt has
+to, or it disappears behind the rim it is wrapped around.  5: placed parts.
+6: pegboard and scenery.  7: backdrop.
 
 A part owns its sprites and knows which display holds them (`Part.spriteDisp`,
 `moveSpritesTo`), so `destroy` always finds them wherever the editor has put
@@ -252,6 +306,15 @@ which imports once, into globals.  `importUtil` itself is the one plain
   yields `[0, -1]` rather than nothing.  Always pass the explicit step:
   `range(0, n-1, 1)` correctly gives `[]`.
 - `PixelDisplay` has `line`, not `drawLine`.
+- **`fillEllipse` drops a wedge.**  It hands the job to raylib's
+  `DrawEllipse`, a fan of 36 triangles with its seam at angle 0, and one
+  triangle of it does not arrive -- so every filled circle has a ten-degree
+  bite out of its right side, invisible at a few pixels across and obvious at
+  fifty.  `fillPoly` next door is our own triangulation and is careful about
+  the culling and batch flushing that `DrawEllipse` is not, so
+  `artUtil.fillCircle` / `drawCircle` go through that instead.  Worth fixing
+  upstream in `PixelDisplay.ms` eventually; until then, prefer them for
+  anything bigger than a bolt head.
 - `super` resolves from the class the running function was *defined* in, so a
   three-deep override chain (`Balance` -> `Lever` -> `Part`) works and does not
   recurse.
