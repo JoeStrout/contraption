@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Render articulated-prop sprite strips for Contraption.
 
-A prop here is a model that opens and closes rather than one that spins, so
-where make_balls.py renders one turn of a sphere, this renders one sweep of a
-joint: frame 0 is fully open, the last frame is fully shut, evenly spaced in
-joint angle.  The camera does not move and the framing is computed once from
-every frame at once, so a fixed point of the model (the scissors' pivot screw)
-stays on the same pixel all the way through.
+A prop here is a model that neither spins nor rolls: either one that opens and
+closes, or one that just sits there.  Where make_balls.py renders one turn of a
+sphere, this renders one sweep of a joint: frame 0 is fully open, the last frame
+is fully shut, evenly spaced in joint angle.  A prop with no `joints` is a
+single still frame, and says how to face the camera with `view` instead.
+
+The camera does not move and the framing is computed once from every frame at
+once, so a fixed point of the model (the scissors' pivot screw) stays on the
+same pixel all the way through.
 
 The joint is driven directly rather than by playing the model's own animation:
 an authored animation has easing and usually loops open-shut-open, so sampling
@@ -42,6 +45,10 @@ from mathutils import Matrix, Vector
 #            (not as the glTF file writes it -- see the note on scissors)
 #   open     scale on every joint angle, for opening wider or less wide than
 #            the model's own animation does
+#   view     for a prop with no joints, which way it faces: yaw spins it about
+#            its own upright axis, pitch tips its top toward the camera.  A
+#            jointless prop has nothing to measure an orientation from, and
+#            models of this kind arrive upright anyway.
 # ---------------------------------------------------------------------------
 
 PROPS = [
@@ -64,6 +71,16 @@ PROPS = [
 	# shut pose sets the width, the open pose sets the height, and at this
 	# gape those come out at about 1.45:1.  A 2:1 cell left a third of every
 	# frame empty and shrank the scissors to fit the height.
+
+	# "[REMAKE] - Net basket" by RaynaudL, CC-BY-4.0 -- see art-attribution.txt
+	dict(name="basket", size=[48, 48], frames=1,
+	     model="../models/wicker_basket.glb",
+	     # Straight from the side, with no pitch: the playfield is seen dead
+	     # on, and any pitch looks down into the basket from a camera the rest
+	     # of the game does not have.  Yaw 0 puts the handle across the screen
+	     # rather than edge on, and the silhouette comes out 0.93 wide to
+	     # tall, so a square cell wastes almost nothing.
+	     view=dict(yaw=0.0, pitch=0.0)),
 ]
 
 # Padding around the model, as a fraction of the frame.  Unlike the balls --
@@ -164,7 +181,7 @@ def find_joints(spec, imported):
 	"""Match the configured node names to imported objects.  Blender uniquifies
 	names on collision, so match by prefix rather than equality."""
 	out = []
-	for name, angle in spec["joints"].items():
+	for name, angle in spec.get("joints", {}).items():
 		hits = [o for o in imported if o.name == name or
 		        o.name.startswith(name + ".")]
 		if not hits:
@@ -174,8 +191,10 @@ def find_joints(spec, imported):
 	return out
 
 
-def pose(joints, axis, t):
-	"""Set every joint to fraction t of its open angle (1 = open, 0 = shut)."""
+def pose(joints, spec, t):
+	"""Set every joint to fraction t of its open angle (1 = open, 0 = shut).
+	A prop with no joints has no axis either, and this does nothing."""
+	axis = spec.get("axis", (0, 0, 1))
 	for obj, angle in joints:
 		obj.rotation_mode = "AXIS_ANGLE"
 		obj.rotation_axis_angle = (angle * t, axis[0], axis[1], axis[2])
@@ -210,10 +229,10 @@ def check_axis(imported, joints, spec):
 	axis Blender ends up with -- and renders as a strip whose frames all look
 	much alike, rather than as an error.  So: opening it must not thicken it.
 	"""
-	pose(joints, spec["axis"], 0.0)
+	pose(joints, spec, 0.0)
 	shut = world_verts(imported).ptp(0)
 	thin = int(np.argmin(shut))
-	pose(joints, spec["axis"], 1.0)
+	pose(joints, spec, 1.0)
 	wide = world_verts(imported).ptp(0)
 	if wide[thin] > 1.5 * shut[thin]:
 		sys.exit("joint axis %s swings %s out of its own plane (thickness "
@@ -233,12 +252,15 @@ def orient(imported, joints, spec):
 	should face right -- for anything tool-shaped, the working end is the end
 	that tapers.
 	"""
+	if not joints:
+		return orient_by_view(imported, spec)
+
 	# Measure shut, not open.  Open, *both* ends are spread wide -- the
 	# handles most of all, being the longer arms -- and the taper test below
 	# reads that as the pointed end and mirrors the prop.  Shut, the two
 	# halves lie on top of each other and the only thing separating the ends
 	# is the shape we actually mean to test.
-	pose(joints, spec["axis"], 0.0)
+	pose(joints, spec, 0.0)
 	v = world_verts(imported)
 	centre = (v.min(0) + v.max(0)) / 2.0
 	extent = v.max(0) - v.min(0)
@@ -275,6 +297,34 @@ def orient(imported, joints, spec):
 			obj.parent = empty
 			obj.matrix_parent_inverse = Matrix.Identity(4)
 	empty.matrix_world = fix
+	bpy.context.view_layer.update()
+	return empty
+
+
+def orient_by_view(imported, spec):
+	"""Face a jointless prop at the camera by the angles it asks for.
+
+	orient() measures its rotation from the silhouette, which needs a shut pose
+	to measure and a tapering working end to point right; a basket has neither.
+	What it does have is glTF's own up axis, which the importer turns into +Z,
+	so the whole job is standing that up on screen: -90 degrees about X puts
+	model +Z on screen +Y.  `pitch` past that tips the top toward the camera,
+	and `yaw` spins the prop about its own upright axis first.
+	"""
+	view = spec.get("view", {})
+	v = world_verts([o for o in imported if o.type == "MESH"])
+	centre = (v.min(0) + v.max(0)) / 2.0
+
+	rot = (Matrix.Rotation(math.radians(view.get("pitch", 0.0) - 90.0), 4, "X")
+	       @ Matrix.Rotation(math.radians(view.get("yaw", 0.0)), 4, "Z"))
+
+	empty = bpy.data.objects.new("prop", None)
+	bpy.context.collection.objects.link(empty)
+	for obj in imported:
+		if obj.parent is None:
+			obj.parent = empty
+			obj.matrix_parent_inverse = Matrix.Identity(4)
+	empty.matrix_world = rot @ Matrix.Translation(Vector(-centre))
 	bpy.context.view_layer.update()
 	return empty
 
@@ -345,7 +395,7 @@ def frame_bounds(imported, joints, spec, frames):
 	lo = np.array([1e18, 1e18, 1e18])
 	hi = -lo
 	for i in range(frames):
-		pose(joints, spec["axis"], openness(i, frames))
+		pose(joints, spec, openness(i, frames))
 		v = world_verts(imported)
 		lo = np.minimum(lo, v.min(0))
 		hi = np.maximum(hi, v.max(0))
@@ -415,7 +465,8 @@ def render_prop(spec, args, tmpdir):
 	cam = build_scene(args)
 	imported = import_model(spec, args.here)
 	joints = find_joints(spec, imported)
-	check_axis(imported, joints, spec)
+	if joints:
+		check_axis(imported, joints, spec)
 	orient(imported, joints, spec)
 	recolor(imported, spec)
 
@@ -433,7 +484,17 @@ def render_prop(spec, args, tmpdir):
 	else:
 		ortho = max(need[1], need[0] * height / width)
 	cam.data.ortho_scale = ortho
-	cam.location = (centre[0], centre[1], 6.0)
+	# Stand the camera clear of the model along its own depth, and open the
+	# clip range to match.  A prop keeps the model's units -- nothing here
+	# scales it the way make_balls.py does -- so a big model reaches past a
+	# camera parked at a fixed distance, and its near face is sliced off by
+	# the near clip plane.  That reads as a hole in the front of the prop
+	# rather than as an error.
+	depth = float(hi[2] - lo[2])
+	standoff = depth + max(1.0, depth)
+	cam.location = (centre[0], centre[1], hi[2] + standoff)
+	cam.data.clip_start = standoff / 2.0
+	cam.data.clip_end = standoff + depth * 2.0 + 1.0
 
 	scene = bpy.context.scene
 	ss = supersample_for([width, height], args)
@@ -447,7 +508,7 @@ def render_prop(spec, args, tmpdir):
 
 	strip = np.zeros((height, width * frames, 4), dtype=np.float32)
 	for i in range(frames):
-		pose(joints, spec["axis"], openness(i, frames))
+		pose(joints, spec, openness(i, frames))
 		tmp = os.path.join(tmpdir, "frame")
 		scene.render.filepath = tmp
 		bpy.ops.render.render(write_still=True)
@@ -458,8 +519,12 @@ def render_prop(spec, args, tmpdir):
 		print("  %s frame %d/%d (open %.2f)"
 		      % (spec["name"], i + 1, frames, openness(i, frames)))
 
-	path = os.path.join(args.out, "%s_%dx1_%dx%d.png"
-	                    % (spec["name"], frames, width, height))
+	if frames == 1:
+		path = os.path.join(args.out, "%s_%dx%d.png"
+		                    % (spec["name"], width, height))
+	else:
+		path = os.path.join(args.out, "%s_%dx1_%dx%d.png"
+		                    % (spec["name"], frames, width, height))
 	save_rgba(strip, path)
 	print("wrote %s" % path)
 
@@ -480,6 +545,10 @@ def main():
 	p.add_argument("--margin", type=float, default=MARGIN)
 	p.add_argument("--open", type=float, default=None, dest="open_scale",
 	               help="scale every joint angle, for a wider or narrower gape")
+	p.add_argument("--yaw", type=float, default=None,
+	               help="override a jointless prop's yaw, for finding a view")
+	p.add_argument("--pitch", type=float, default=None,
+	               help="override a jointless prop's pitch")
 	p.add_argument("--write-frames", action="store_true")
 	p.add_argument("--as-modelled", action="store_true",
 	               help="keep the model's own materials instead of recolouring")
@@ -498,12 +567,20 @@ def main():
 		sys.exit("no props matched %s" % args.only)
 	try:
 		for spec in todo:
-			if args.as_modelled or args.open_scale is not None:
+			if (args.as_modelled or args.open_scale is not None
+					or args.yaw is not None or args.pitch is not None):
 				spec = dict(spec)
 				if args.as_modelled:
 					spec.pop("materials", None)
 				if args.open_scale is not None:
 					spec["open"] = args.open_scale
+				view = dict(spec.get("view", {}))
+				if args.yaw is not None:
+					view["yaw"] = args.yaw
+				if args.pitch is not None:
+					view["pitch"] = args.pitch
+				if view:
+					spec["view"] = view
 			render_prop(spec, args, tmpdir)
 	finally:
 		shutil.rmtree(tmpdir, ignore_errors=True)

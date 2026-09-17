@@ -76,3 +76,15 @@ frames = function(path, size, cols=8, count=64)
 	sheets[path] = result
 	return result
 end function
+
+// Multiply two colors together, which is exactly what a tint does when it is
+// drawn.  Used to lay the editor's drag feedback over art that is already
+// tinted, so that neither one throws the other away.
+multiply = function(a, b)
+	ca = color.toList(a); cb = color.toList(b)
+	out = []
+	for i in [0, 1, 2, 3]
+		out.push floor(ca[i] * cb[i] / 255)
+	end for
+	return color.fromList(out)
+end function

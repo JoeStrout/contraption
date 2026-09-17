@@ -231,19 +231,16 @@ Editor.dragTo = function(mx, my)
 	if ok != self.dropOK then
 		self.dropOK = ok
 		self.overlayDirty = true
-		self.tintSprites p
+		p.tintSprites self.dropWash
 	end if
 end function
 
-Editor.tintSprites = function(p)
-	if self.dropOK then
-		tint = "#FFFFFF"
-	else
-		tint = "#FF8080"
-	end if
-	for sp in p.sprites
-		sp.tint = tint
-	end for
+// The wash a dragged part wears: red while it is somewhere it cannot be
+// dropped.  The part lays it on itself, since only the part knows what its
+// own art is tinted with already.
+Editor.dropWash = function
+	if self.dropOK then return "#FFFFFF"
+	return "#FF8080"
 end function
 
 // Float a part's sprites above the panel while it is being dragged, so they
@@ -254,10 +251,11 @@ end function
 
 // Put them back among the placed parts, untinted.
 Editor.returnSprites = function(p)
-	for sp in p.sprites
-		sp.tint = "#FFFFFF"
-	end for
+	p.tintSprites
 	p.moveSpritesTo self.world.partDisp
+	// It lands at the end of the layer, which would put an ordinary part
+	// over a basket; the parts that draw in front go back on top.
+	self.world.raiseFrontParts
 end function
 
 //----------------------------------------------------------------------

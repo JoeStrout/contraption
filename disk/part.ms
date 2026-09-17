@@ -31,6 +31,8 @@ Part.defaultSpec = {"x": 0, "y": 0, "angle": 0,
 Part.isRope = false                 // ropes are solved and drawn specially
 Part.draggable = true               // a rope is not moved by dragging it
 Part.mountsOnTie = false            // dropped on a tie point, not on the grid
+Part.drawsInFront = false           // kept at the top of the part layer; see
+                                    // GameWorld.raiseFrontParts
 Part.wrapRadius = 0                 // pulleys: the wheel a rope bends around
 
 Part.spec = null                    // per-instance, see make
@@ -53,7 +55,7 @@ Part.nextId = 1                     // the next id to hand out
 Part.make = function(spec=null)
 	p = new self
 	p.spec = {} + self.defaultSpec
-	if spec != null then p.spec = p.spec + spec
+	if spec != null then p.spec += spec
 	p.bodies = []
 	p.sprites = []
 	p.settleTime = 0
@@ -66,7 +68,7 @@ Part.make = function(spec=null)
 	else if p.spec.id >= Part.nextId then
 		Part.nextId = p.spec.id
 	end if
-	Part.nextId = Part.nextId + 1
+	Part.nextId += 1
 	p.id = p.spec.id
 	p.init
 	return p
@@ -246,6 +248,20 @@ Part.makeSprites = function
 		sp.image = self.image
 		self.sprites.push sp
 		self.spriteDisp.sprites.push sp
+	end for
+end function
+
+// Lay a wash of color over the part, by multiplying it into each sprite's
+// tint: white for the part's own colors, anything else to say something
+// about it -- the editor washes a part red while it is over a spot it
+// cannot be dropped on.
+//
+// It is a hook because a part whose art carries a tint of its own (a
+// balloon is one flat gray picture, tinted to whatever color it is) has to
+// put that tint back underneath, rather than have it painted over.
+Part.tintSprites = function(wash="#FFFFFF")
+	for sp in self.sprites
+		sp.tint = wash
 	end for
 end function
 

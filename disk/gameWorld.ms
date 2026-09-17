@@ -46,7 +46,27 @@ GameWorld.addPart = function(p)
 	self.byId[p.id] = p
 	if p.isRope then self.ropes.push p
 	p.build self
+	self.raiseFrontParts
 	return p
+end function
+
+// Sprites on one display draw in list order, so the only way a part can be
+// made to draw over the others is to keep its sprites at the end of the
+// list.  There is no display slot left to give it instead: all eight are
+// spoken for, and the ones above the parts (the drag layer, the panel, the
+// selection overlay) are all things that must stay above it.
+//
+// So a part that draws in front is pushed back to the end whenever anything
+// new is added to the layer, which is the only moment the order can change.
+GameWorld.raiseFrontParts = function
+	for p in self.parts
+		if not p.drawsInFront or p.spriteDisp == null then continue
+		if not refEquals(p.spriteDisp, self.partDisp) then continue
+		for sp in p.sprites
+			util.removeRef self.partDisp.sprites, sp
+			self.partDisp.sprites.push sp
+		end for
+	end for
 end function
 
 // Take a part out, and with it anything that only made sense while it was

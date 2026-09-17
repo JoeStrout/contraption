@@ -1,7 +1,8 @@
 # Prop sprites
 
 `make_props.py` renders each prop in `PROPS` as a strip of frames running from
-wide open to shut, and packs them into one row.
+wide open to shut, and packs them into one row.  A prop with no `joints` is a
+single still frame instead, written as one sprite rather than a strip.
 
 ```sh
 ./render.sh                          # everything, into out/
@@ -9,6 +10,7 @@ wide open to shut, and packs them into one row.
 ./render.sh --engine eevee --samples 8 --size 192 96 --frames 4   # quick look
 ./render.sh --as-modelled            # keep the model's own materials
 ./render.sh --only scissors --open 0.75   # try a different gape
+./render.sh --only basket --yaw 25 --pitch 18   # try a view, for a still prop
 ```
 
 `render.sh` just locates Blender (override with `BLENDER=...`) and runs
@@ -18,6 +20,7 @@ so it will not run under the system python.
 Output lands in `out/`:
 
 * `out/<name>_<frames>x1_<w>x<h>.png` — the strip the game loads
+* `out/<name>_<w>x<h>.png` — a jointless prop, which is one frame, not a strip
 * `out/<name>_<w>x<h>/frame_NN.png` — the frames (only with `--write-frames`)
 
 Copy the strip into `../../disk/pics/` when you want it in the game.
@@ -50,6 +53,28 @@ Unlike the balls, which are framed edge to edge so the sprite size *is* the
 diameter, props get a little air around them (`MARGIN`): the silhouette
 changes shape as the prop opens, and a blade tip landing on the last pixel
 column looks clipped.
+
+## Standing props: the basket
+
+`basket` has no `joints`, so it is a single frame and the joint machinery --
+`check_axis`, the angle sweep, the measured orientation below -- sits out.
+What it needs instead is `view`: `yaw` spins the prop about its own upright
+axis, `pitch` tips its top toward the camera.  Both are zero for the basket,
+because the playfield is seen dead on, and any pitch looks down into the
+basket from a camera the rest of the game does not have.  `--yaw` and
+`--pitch` override them for one run, which is how to find a view.
+
+There is nothing to measure an orientation *from* on a prop like this -- no
+shut pose, no tapering working end -- but there is glTF's own up axis, which
+the importer turns into Blender's +Z, so standing it up on screen is all the
+orientation it needs.
+
+Nothing scales a prop the way `make_balls.py` scales a ball, so a prop carries
+the model's own units, and this basket is 18 of them deep.  That is why the
+camera stands off by the model's depth and takes its clip range from it: at a
+fixed distance it ends up *inside* a model this big, and the near clip plane
+slices the front off the basket -- which reads as a hole in the weave rather
+than as an error.
 
 ## Orientation is measured, not configured
 
@@ -95,6 +120,9 @@ angle each is turned at frame 0, and `axis`.  Optional `open` scales every
 joint angle, for opening wider or less wide than the model does; `skip` leaves
 it out of a plain run; `materials` recolours it (below); `pivot` names the node
 to measure the blade/handle split from.
+
+A prop that does not move leaves out `joints` and `axis`, sets `frames` to 1,
+and gives `view` instead.
 
 ### Recolouring
 

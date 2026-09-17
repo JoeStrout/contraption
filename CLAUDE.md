@@ -210,6 +210,12 @@ A part owns its sprites and knows which display holds them (`Part.spriteDisp`,
 `moveSpritesTo`), so `destroy` always finds them wherever the editor has put
 them.
 
+All eight slots are taken, so a part that must draw over its neighbours
+cannot have one of its own: `Part.drawsInFront` instead keeps its sprites at
+the end of the part layer, where sprites draw last, and
+`GameWorld.raiseFrontParts` restores that order whenever a part joins the
+layer.  A basket uses it, so that what it carries rides inside it.
+
 ## Conventions
 
 **Import with `ensureImport`, not `import`.**  `import` runs the module every

@@ -5,7 +5,8 @@ import "importUtil"
 ensureImport ["config", "part", "artUtil", "physics", "util"]
 
 if not env.importPaths.hasIndex("/usr/parts") then env.importPaths.insert 0, "/usr/parts"
-ensureImport "balls block platform lever balance rope tiePoint pulleys weight".split
+ensureImport "balls block platform lever balance rope tiePoint pulleys".split +
+  "weight balloon basket".split
 
 //----------------------------------------------------------------------
 // The registry, for loading a saved design.
@@ -59,6 +60,8 @@ catalog = [
 	{"cls": Weight, "spec": {"width": 30, "height": 30, "kg": 1}, "label": "1 kg"},
 	{"cls": Weight, "spec": {"width": 40, "height": 40, "kg": 3}, "label": "3 kg"},
 	{"cls": Weight, "spec": {"width": 50, "height": 50, "kg": 5}, "label": "5 kg"},
+	{"cls": Balloon, "spec": {"color": "#FF4444"}, "label": "Balloon"},
+	{"cls": Basket, "spec": {}, "label": "Basket"},
 	{"cls": TiePoint, "spec": {}, "label": "Tie Point"},
 	{"cls": Pulley, "spec": {}, "label": "Pulley"},
 	{"cls": MountedPulley, "spec": {}, "label": "Mounted Pulley"},
