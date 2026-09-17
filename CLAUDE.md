@@ -55,7 +55,9 @@ disk/            mounted as /usr; the game
   contraption.ms   entry point: displays, level scenery, main loop
   config.ms        layout, tuning, colors -- all magic numbers live here
   part.ms          the Part base class
-  parts.ms         Ball, Block, Platform, Lever, Balance; registry and catalog
+  parts.ms         Ball, Block, Platform, Lever, Balance, Weight, TiePoint,
+                   Pulley, MountedPulley; the registry and palette catalog
+  rope.ms          the Rope part: its constraint, its beads, and its drawing
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
@@ -155,6 +157,36 @@ All of them are worked around in our code; `physics.ms` is used unmodified.
   `World.step`, which bails on `dt <= 0` and would advance things anyway.  Being
   a real narrowphase, it stays correct for any shape we add later.
 
+### Parts that name other parts
+
+A rope is tied to two other parts; a mounted pulley is bolted to one.  So a
+part has an `id`, which lives in its `spec` and therefore survives a save, and
+the world keeps a `byId` index.  A reference is `{part: id, tie: index}`.
+Deleting a part deletes whatever `dependsOn` it -- the ropes tied to it, the
+pulleys on it.  Wires and belts, when they come, want the same machinery.
+
+**Tie points** are where a rope may be fastened: `Part.tieLocals` gives them in
+the part's own frame, and `tieList` resolves each to `[body, lx, ly]` in that
+body's frame, so a tie point follows whatever it is on.  Resolution is lazy,
+because a mounted pulley's tie point *is* the tie point it is bolted to -- same
+body, same offset -- and the order parts are built in says nothing about which
+part that is.  That also means a mounted pulley needs no joint and no body of
+its own: a rope over it pulls on its host, at the right point, by construction.
+
+### Ropes
+
+See the header of `rope.ms`; the two things to know here are that a taut rope
+is a single scalar constraint (its total path length) solved by impulses after
+the physics step, and that a slack rope is not physics at all but a line of
+beads, run for looks and never pushing back.
+
+`GameWorld.solveRopes` runs after `phys.step` and before the parts' `update`
+hooks, so a rope pulling on a lever arrives in time for the lever's pin to
+turn it into spin.  Ropes that share a body are relaxed together.  The solve
+is in two passes -- impulses for the velocity, then a geometric pass for the
+length -- and `rope.ms` explains why folding the second into the first (the
+usual Baumgarte bias) is wrong here rather than merely inexact.
+
 ### Coordinates
 
 Mini Micro screen coordinates throughout — y up, origin lower left — so gravity
@@ -170,11 +202,25 @@ sized in multiples of `config.grid` abut exactly.  Positions stay floats;
 
 Lower slot numbers draw on top.  1: the part being dragged (above the panel, so
 it does not slide under while crossing the edge).  2: the panel.  3: selection
-overlay.  4: placed parts.  5: pegboard and scenery.  7: backdrop.
+overlay, and the tie-point guides while a rope is being run.  4: placed parts.
+5: ropes, which therefore pass behind the parts they are tied to.  6: pegboard
+and scenery.  7: backdrop.
 
 A part owns its sprites and knows which display holds them (`Part.spriteDisp`,
 `moveSpritesTo`), so `destroy` always finds them wherever the editor has put
 them.
+
+## Conventions
+
+**Import with `ensureImport`, not `import`.**  `import` runs the module every
+time it is called, which is correct -- but it means a module imported from
+five places is five separate maps, and `globals.Part = {}` running again makes
+a *new* Part that the existing subclasses do not inherit from.  Class-level
+state then splits in two: `Part.nextId` resets to 1 and the next part created
+collides with an id that a rope is already using to name its target.  So every
+module here opens with `import "importUtil"` and then `ensureImport [...]`,
+which imports once, into globals.  `importUtil` itself is the one plain
+`import`, for obvious reasons.
 
 ## MiniScript gotchas hit in this codebase
 
@@ -187,6 +233,9 @@ them.
   yields `[0, -1]` rather than nothing.  Always pass the explicit step:
   `range(0, n-1, 1)` correctly gives `[]`.
 - `PixelDisplay` has `line`, not `drawLine`.
+- `super` resolves from the class the running function was *defined* in, so a
+  three-deep override chain (`Balance` -> `Lever` -> `Part`) works and does not
+  recurse.
 - `fillRect` blends with GL_ONE/GL_ZERO (a straight replace), so filling with a
   transparent color genuinely erases.  Prefer it over `clear` for per-frame
   erasing: `clear` reallocates the render texture when the size differs, and

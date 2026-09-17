@@ -8,3 +8,7 @@ art-sources/balls/out/
 # small enough to commit.  Re-download it to re-render ball-tennis -- see
 # "Imported models" in art-sources/balls/README.md.
 art-sources/models/tennis_ball.glb
+
+# Rendered prop strips.  Derived from art-sources/props/make_props.py; the
+# strips the game actually uses are committed under disk/pics.
+art-sources/props/out/

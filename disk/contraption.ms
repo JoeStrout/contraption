@@ -9,19 +9,16 @@
 //   click a part            select it
 //   Backspace / Delete      delete the selected part
 //   mouse wheel over panel  scroll the palette
+//   drag Rope from palette  drop it on a tie point to make one end fast,
+//                           then click another to finish the run (a click
+//                           on a pulley's wheel routes the rope over it;
+//                           Return ends it loose, as if it had been cut)
 //   play / pause / stop     run, hold, and reset the simulation
 //   Esc                     quit
 
-import "mathUtil"
-import "config"
-import "physics"
-import "artUtil"
-import "util"
-import "part"
-import "parts"
-import "gameWorld"
-import "panel"
-import "editor"
+import "importUtil"
+ensureImport ["mathUtil", "config", "physics", "artUtil", "util", "part",
+  "parts", "gameWorld", "panel", "editor"]
 
 //----------------------------------------------------------------------
 // Displays.  Lower slot numbers draw on top.
@@ -30,7 +27,6 @@ clear
 display(0).setMode displayMode.text
 globals.text = display(0)
 text.clear
-display(6).setMode displayMode.off
 
 display(1).setMode displayMode.sprite      // the part being dragged
 dragDisp = display(1)
@@ -48,8 +44,12 @@ display(4).setMode displayMode.sprite      // placed parts
 partDisp = display(4)
 partDisp.clear
 
-display(5).setMode displayMode.pixel       // pegboard and scenery
-bgDisp = display(5)
+display(5).setMode displayMode.pixel       // ropes, behind the parts they tie
+ropeDisp = display(5)
+ropeDisp.clear color.clear, 960, 640
+
+display(6).setMode displayMode.pixel       // pegboard and scenery
+bgDisp = display(6)
 bgDisp.clear config.fieldColor, 960, 640
 
 display(7).setMode displayMode.solidColor
@@ -138,6 +138,11 @@ while not key.pressed("escape")
 	end if
 
 	world.advance elapsed
+
+	// Ropes draw themselves, in every mode: a slack one hangs while you are
+	// still building.
+	world.updateRopes elapsed
+	world.drawRopes ropeDisp
 
 	thePanel.trackMouse mouse.x, mouse.y, world.mode
 	thePanel.draw world.mode

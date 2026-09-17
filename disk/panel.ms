@@ -2,10 +2,8 @@
 // The panel down the right-hand side: the scrolling parts palette in design
 // mode, and the play/pause/stop transport across the bottom in both modes.
 
-import "config"
-import "artUtil"
-import "parts"
-import "gameWorld"
+import "importUtil"
+ensureImport ["config", "artUtil", "parts", "gameWorld"]
 
 globals.Panel = {}
 

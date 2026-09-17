@@ -100,3 +100,37 @@ maskPan = 65535 - catFulcrum
 // never looks like it is cutting into the apex.
 leverMaxTilt = 40 * pi / 180
 leverFulcrumFlare = 20 * pi / 180
+
+// One meter is this many pixels: gravity 980 px/s^2 against the real
+// 9.8 m/s^2.  A part that wants to weigh a stated number of kilograms picks
+// its density from this -- mass is density * area in pixels, so a density of
+// 1 means one kilogram per square meter.
+pxPerMeter = 100
+
+// Ropes.  A taut rope is one scalar constraint -- its total path length,
+// through however many pulleys -- solved by sequential impulses after each
+// physics step, and then a second pass that puts right whatever length error
+// is left by moving the bodies rather than by pushing them.  See rope.ms for
+// why the usual trick of folding the error into the velocity solve is no
+// good here.  slop is the stretch we let pass, so a rope at rest stops work.
+ropeIterations = 8
+ropePosIterations = 2
+ropeSlop = 0.25
+
+// A slack rope is not solved at all: it is a line of beads, run for looks
+// only and never pushing back on the world.  See rope.ms.
+ropeSegment = 10            // px of rope per bead
+ropeChainIterations = 4
+ropeChainDamp = 0.98
+ropeChainCollide = true     // beads stop at the world's shapes (one way)
+
+ropeColor = "#9A7248"
+ropeWidth = 3
+ropeArcSteps = 4            // segments drawn around a pulley's wrap
+
+// Tie points: where a rope may be fastened.
+tieSnap = 14                // px the mouse may be from one and still grab it
+mountSnap = 28              // ...and from one to mount a pulley on it
+tieRadius = 4
+tieColor = "#2A3642A0"
+tieHotColor = "#50D0FF"

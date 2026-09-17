@@ -16,10 +16,8 @@
 // fresh in `make`; a list left on the class would be shared by every
 // instance of it.
 
-import "config"
-import "physics"
-import "artUtil"
-import "util"
+import "importUtil"
+ensureImport ["config", "physics", "artUtil", "util"]
 
 globals.Part = {}
 
@@ -30,12 +28,21 @@ Part.fixed = false                  // level scenery: not draggable or deletable
 Part.defaultSpec = {"x": 0, "y": 0, "angle": 0,
   "linearDamping": 0, "angularDamping": 0, "bounceSoftSpeed": 0}
 
+Part.isRope = false                 // ropes are solved and drawn specially
+Part.draggable = true               // a rope is not moved by dragging it
+Part.mountsOnTie = false            // dropped on a tie point, not on the grid
+Part.wrapRadius = 0                 // pulleys: the wheel a rope bends around
+
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
 Part.sprites = null
 Part.spriteDisp = null              // the display our sprites are currently on
 Part.world = null                   // the GameWorld we belong to
 Part.settleTime = 0                 // runtime: seconds spent barely moving
+Part.tethered = false               // runtime: a taut rope is holding us
+Part.ties = null                    // per-instance, resolved lazily; see tieList
+Part.id = 0                         // stable identity, for parts that name others
+Part.nextId = 1                     // the next id to hand out
 
 //----------------------------------------------------------------------
 // Construction
@@ -50,6 +57,17 @@ Part.make = function(spec=null)
 	p.bodies = []
 	p.sprites = []
 	p.settleTime = 0
+	p.ties = null
+	// Identity lives in spec, so that it survives a save and the references
+	// other parts hold -- a rope's tie points, a pulley's mount -- still mean
+	// the same parts when the design is loaded back.
+	if not p.spec.hasIndex("id") or not p.spec.id then
+		p.spec.id = Part.nextId
+	else if p.spec.id >= Part.nextId then
+		Part.nextId = p.spec.id
+	end if
+	Part.nextId = Part.nextId + 1
+	p.id = p.spec.id
 	p.init
 	return p
 end function
@@ -72,6 +90,77 @@ end function
 Part.designBounds = function
 	sz = self.size
 	return [self.spec.x - sz[0] / 2, self.spec.y - sz[1] / 2, sz[0], sz[1]]
+end function
+
+//----------------------------------------------------------------------
+// Tie points: the places a rope may be fastened to this part.
+//----------------------------------------------------------------------
+
+// Subclass hook: the tie points, as [x, y] in the part's own frame (relative
+// to spec.x/y, unrotated), each optionally followed by the index of the body
+// that carries it.
+Part.tieLocals = function
+	return []
+end function
+
+// The same points resolved to [body, lx, ly], in that body's own frame,
+// which is what a rope needs to follow them around.
+//
+// Resolved on demand rather than at build time, because a part may tie onto
+// another part (a mounted pulley rides on whatever it is bolted to) and the
+// order parts are built in says nothing about which of them that is.
+Part.tieList = function
+	if self.ties == null then self.makeTies
+	return self.ties
+end function
+
+Part.makeTies = function
+	self.ties = []
+	for t in self.tieLocals
+		bi = 0
+		if t.len > 2 then bi = t[2]
+		if bi >= self.bodies.len then continue
+		b = self.bodies[bi]
+		self.ties.push [b, t[0] - b.localX, t[1] - b.localY]
+	end for
+end function
+
+// Where tie point i has got to in the world.
+Part.tieWorld = function(i)
+	tl = self.tieList
+	if i >= tl.len then return null
+	t = tl[i]
+	b = t[0]
+	o = b.position
+	a = b.angle
+	c = cos(a); sn = sin(a)
+	return [o[0] + t[1] * c - t[2] * sn, o[1] + t[1] * sn + t[2] * c]
+end function
+
+//----------------------------------------------------------------------
+// Placement and picking
+//----------------------------------------------------------------------
+
+// Subclass hook: where a part dropped at (x, y) should actually land.
+Part.snapPose = function(world, x, y)
+	return world.gridSnap(self, x, y)
+end function
+
+// Subclass hook: may the part sit where it now is?
+Part.placementOK = function(world)
+	return world.footprintOK(self)
+end function
+
+// Subclass hook: does (x, y) hit this part?  For parts the physics cannot
+// answer for -- a rope has no shapes, a mounted pulley has no body.
+Part.hitTest = function(x, y)
+	return false
+end function
+
+// Subclass hook: is this part only meaningful while `other` exists?  If so,
+// deleting `other` deletes this one too.
+Part.dependsOn = function(other)
+	return false
 end function
 
 //----------------------------------------------------------------------
@@ -191,6 +280,7 @@ end function
 // Bring the part into a world.  Called by GameWorld.addPart.
 Part.build = function(world)
 	self.world = world
+	self.ties = null
 	self.makeBodies
 	self.makeSprites
 	self.syncSprites
@@ -202,6 +292,7 @@ Part.destroy = function
 		self.world.phys.removeBody b
 	end for
 	self.bodies = []
+	self.ties = null
 	if self.spriteDisp != null then
 		for sp in self.sprites
 			util.removeRef self.spriteDisp.sprites, sp
@@ -219,6 +310,9 @@ Part.setPose = function(x, y, angle=null)
 	if angle != null then self.spec.angle = angle
 	self.placeBodies
 	self.syncSprites
+	// Anything riding on us reads its position off our bodies, and nothing
+	// else is going to redraw it: in design mode there is no per-frame sync.
+	if self.world != null then self.world.syncDependents self
 end function
 
 // Play is starting: give each body its real type.  Subclasses that need to
@@ -233,6 +327,7 @@ end function
 // where spec says.  Subclasses with runtime state clear it here.
 Part.onStop = function
 	self.settleTime = 0
+	self.tethered = false
 	self.resetBounce
 	for b in self.bodies
 		b.setType physics.DYNAMIC
@@ -283,6 +378,12 @@ end function
 // and settling half of a multi-body part would tear it.
 Part.settle = function(dt)
 	if self.bodyType != physics.DYNAMIC then return
+	// A part on a taut rope is held, not resting: settling a pendulum would
+	// stop it dead at the bottom of its swing.
+	if self.tethered then
+		self.settleTime = 0
+		return
+	end if
 	for b in self.bodies
 		if b.vx * b.vx + b.vy * b.vy > config.settleSpeed ^ 2 or
 		   abs(b.angularVelocity) > config.settleSpin then
@@ -302,6 +403,9 @@ end function
 // Get ready for the step about to run.  Anything the solver has to be told
 // before it solves belongs here, because by `update` it is too late.
 Part.preStep = function(dt)
+	// Cleared now, set again by any rope that turns out to be pulling on us
+	// in this step's constraint pass, and read by settle after that.
+	self.tethered = false
 	self.softenBounce
 end function
 

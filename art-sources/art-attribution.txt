@@ -3,3 +3,5 @@ soccer_ball: "Soccer Ball" (https://skfb.ly/6Az9F) by typhomnt is licensed under
 bowling_ball: "Bowling ball" (https://skfb.ly/6WUuZ) by Diversant-ka is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 tennis_ball: "Tennis Ball" (https://skfb.ly/6YLwv) by Arman.Abgaryan is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+scissors: "Scissors (Low Poly)" (https://skfb.ly/pMJ9S) by game_travel is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).

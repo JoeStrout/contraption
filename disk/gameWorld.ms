@@ -2,12 +2,8 @@
 // The world: the parts in it, the physics that moves them, and the mode that
 // says whether it is moving at all.
 
-import "config"
-import "physics"
-import "part"
-import "parts"
-import "json"
-import "util"
+import "importUtil"
+ensureImport ["config", "physics", "part", "parts", "json", "util"]
 
 // physicsCore is a native intrinsic where the host has one, and the
 // MiniScript fallback (reachable through the physics module) where it does
@@ -29,6 +25,8 @@ GameWorld.make = function(partDisp)
 	w.phys = physics.World.make(0, -config.gravity)
 	w.phys.restitutionThreshold = config.restitutionThreshold
 	w.parts = []
+	w.byId = {}             // part id -> part, for the references ropes hold
+	w.ropes = []            // the parts with a constraint to solve
 	w.mode = GameWorld.DESIGN
 	w.partDisp = partDisp
 	// Scratch matrices for the overlap query, reused so that dragging does
@@ -45,15 +43,43 @@ end function
 
 GameWorld.addPart = function(p)
 	self.parts.push p
+	self.byId[p.id] = p
+	if p.isRope then self.ropes.push p
 	p.build self
 	return p
 end function
 
+// Take a part out, and with it anything that only made sense while it was
+// there: the ropes tied to it, the pulleys bolted to it.
 GameWorld.removePart = function(p)
 	idx = util.indexOfRef(self.parts, p)
 	if idx == null then return
+	doomed = []
+	for other in self.parts
+		if not util.sameRef(other, p) and other.dependsOn(p) then doomed.push other
+	end for
 	p.destroy
 	self.parts.remove idx
+	self.byId.remove p.id
+	if p.isRope then util.removeRef self.ropes, p
+	for d in doomed
+		self.removePart d
+	end for
+end function
+
+// Redraw whatever rides on `p`, now that `p` has moved.  One level deep: a
+// pulley on a weight is the case this is for.
+GameWorld.syncDependents = function(p)
+	for other in self.parts
+		if not util.sameRef(other, p) and other.dependsOn(p) then
+			other.syncSprites
+		end if
+	end for
+end function
+
+GameWorld.partById = function(id)
+	if not self.byId.hasIndex(id) then return null
+	return self.byId[id]
 end function
 
 // The topmost part whose actual shape covers (x, y), or null.
@@ -62,6 +88,11 @@ GameWorld.partAt = function(x, y)
 	// shapesAt returns them topmost (highest shape id) first.
 	for sh in shapes
 		if sh.body.hasIndex("part") then return sh.body.part
+	end for
+	// Parts the physics cannot answer for: a rope has no shapes at all, and
+	// a mounted pulley has no body of its own.  Last placed wins.
+	for i in range(self.parts.len - 1, 0, -1)
+		if self.parts[i].hitTest(x, y) then return self.parts[i]
 	end for
 	return null
 end function
@@ -115,8 +146,13 @@ GameWorld.overlapping = function(p)
 	return hits
 end function
 
-// Would `p` be legal where it now sits?  Off the playfield counts as not.
+// Would `p` be legal where it now sits?  The part decides; this is the rule
+// for the ordinary sort, which has a footprint and must keep it clear.
 GameWorld.placementOK = function(p)
+	return p.placementOK(self)
+end function
+
+GameWorld.footprintOK = function(p)
 	bounds = p.designBounds
 	if bounds[0] < 0 or bounds[1] < 0 then return false
 	if bounds[0] + bounds[2] > config.fieldWidth then return false
@@ -124,9 +160,15 @@ GameWorld.placementOK = function(p)
 	return self.overlapping(p).len == 0
 end function
 
+// Where a part dropped at (x, y) lands.  Again the part decides -- a mounted
+// pulley snaps to a tie point rather than to the grid.
+GameWorld.snap = function(p, x, y)
+	return p.snapPose(self, x, y)
+end function
+
 // Snap a proposed center position so the part's footprint lands on the grid.
 // Positions stay floats; this is the only place that quantizes them.
-GameWorld.snap = function(p, x, y)
+GameWorld.gridSnap = function(p, x, y)
 	sz = p.size
 	g = config.grid
 	left = round((x - sz[0] / 2) / g) * g
@@ -157,6 +199,11 @@ GameWorld.stop = function
 	for p in self.parts
 		p.onStop
 	end for
+	// A second pass, because a part that rides on another can only be put
+	// back once the part underneath it has been.
+	for p in self.parts
+		p.syncSprites
+	end for
 end function
 
 //----------------------------------------------------------------------
@@ -182,6 +229,7 @@ GameWorld.advance = function(elapsed)
 			p.preStep dt
 		end for
 		self.phys.step dt
+		self.solveRopes dt
 		for p in self.parts
 			p.settle dt
 			p.update dt
@@ -190,6 +238,85 @@ GameWorld.advance = function(elapsed)
 	for p in self.parts
 		p.syncSprites
 	end for
+end function
+
+// Rope tension, solved after the step the contacts were solved in.
+//
+// Each rope is a single scalar constraint, but ropes that share a body pull
+// on each other, so they are relaxed together: one pass to work out each
+// rope's geometry and hand back the tension it was carrying, then a round of
+// iterations over the lot.  It runs before the parts' own update hooks, so
+// that a rope pulling on a lever arrives in time for the lever's pin to turn
+// it into spin.
+GameWorld.solveRopes = function(dt)
+	if not self.ropes then return
+	for r in self.ropes
+		r.beginSolve dt
+	end for
+	for i in range(1, config.ropeIterations, 1)
+		for r in self.ropes
+			r.solveOnce dt
+		end for
+	end for
+	// And then put the length right, by moving things rather than by asking
+	// the impulses to do two jobs at once.
+	for i in range(1, config.ropePosIterations, 1)
+		for r in self.ropes
+			r.solvePosition
+		end for
+	end for
+end function
+
+// Ropes are drawn from their own simulation, not from sprites, and it runs
+// in every mode.  In design mode it also keeps each rope's length in step
+// with the layout, so that moving something a rope is tied to shortens or
+// lengthens the rope instead of leaving it slack.  Paused, nothing moves:
+// the length is part of the run by then, and must not be touched.
+GameWorld.updateRopes = function(dt)
+	if self.mode == GameWorld.PAUSED then return
+	designing = self.mode == GameWorld.DESIGN
+	for r in self.ropes
+		if designing then r.remeasure
+		r.updateVisual dt
+	end for
+end function
+
+GameWorld.drawRopes = function(disp)
+	disp.fillRect 0, 0, config.fieldWidth, config.fieldHeight, color.clear
+	for r in self.ropes
+		r.draw disp
+	end for
+end function
+
+// Every tie point in the world, as [part, index, x, y].  The editor shows
+// these while a rope is being run.
+GameWorld.tiePoints = function
+	out = []
+	for p in self.parts
+		tl = p.tieList
+		for i in tl.indexes
+			w = p.tieWorld(i)
+			if w != null then out.push [p, i, w[0], w[1]]
+		end for
+	end for
+	return out
+end function
+
+// The tie point nearest (x, y) within `range` px, or null.  `skip` leaves a
+// part's own tie points out: a mounted pulley's tie point sits exactly on top
+// of the one it is mounted on, and would otherwise hide it.
+GameWorld.tieAt = function(x, y, range, skip=null)
+	best = null
+	bestD = range * range
+	for t in self.tiePoints
+		if skip != null and util.sameRef(t[0], skip) then continue
+		d = (t[2] - x) ^ 2 + (t[3] - y) ^ 2
+		if d <= bestD then
+			bestD = d
+			best = t
+		end if
+	end for
+	return best
 end function
 
 //----------------------------------------------------------------------
