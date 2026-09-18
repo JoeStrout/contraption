@@ -34,6 +34,7 @@ Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e.wasDown = false
 	e.overlayDirty = true
 	e.linkKind = "rope"            // ...or "belt" or "wire"; see beginNewPart
+	e.linkCls = null               // the class being run, which is what gets made
 	e.linkPts = []                 // [part, tieIndex] chosen so far
 	e.hotTie = null                // the tie point (or wheel) under the mouse
 	e.linkDragging = false         // still holding the end we pulled out
@@ -203,7 +204,7 @@ Editor.handleKeys = function(mode)
 			// fastening it to anything.  Neither a belt nor a wire has a
 			// loose end worth authoring.
 			if k == char(3) or k == char(10) then
-				if self.linkKind == "rope" then
+				if self.linkKind == "rope" and self.linkCls.allowsLooseEnd then
 					self.finishLooseRope mouse.x, mouse.y
 				else
 					self.cancelLink
@@ -239,6 +240,7 @@ Editor.beginNewPart = function(entryIndex, mx, my)
 		self.select null
 		self.state = Editor.LINKING
 		self.linkKind = "rope"
+		self.linkCls = entry.cls
 		if entry.cls.isBelt then self.linkKind = "belt"
 		// Checked after isRope, because a wire is a Rope: see parts/wire.ms.
 		if entry.cls.isWire then self.linkKind = "wire"
@@ -384,8 +386,9 @@ Editor.onLinkClick = function(mx, my)
 		if self.linkPts.len >= 2 then self.finishBelt
 		return
 	end if
-	// A wheel is a place to route through, anything else is an end.
-	if tie[0].ropeRoutes(tie[1]) then return
+	// A wheel is a place to route through, anything else is an end -- unless
+	// the thing being run is one that cannot bend round a wheel at all.
+	if self.linkCls.canRoute and tie[0].ropeRoutes(tie[1]) then return
 	if self.linkPts.len >= 2 then self.finishRope
 end function
 
@@ -394,10 +397,10 @@ Editor.finishRope = function
 	for p in self.linkPts
 		pts.push {"part": p[0].id, "tie": p[1]}
 	end for
-	r = Rope.make({"points": pts})
+	r = self.linkCls.make({"points": pts})
 	self.world.addPart r
 	// A rope is made exactly as long as the path it was drawn along, so it
-	// starts taut.
+	// starts taut.  So is a fuse, which is stiff and stays that way.
 	r.setLength r.measure
 	self.endLink r
 end function
@@ -443,7 +446,7 @@ Editor.finishLooseRope = function(mx, my)
 	for p in self.linkPts
 		pts.push {"part": p[0].id, "tie": p[1]}
 	end for
-	r = Rope.make({"points": pts, "freeEnd": true, "fixedLength": true})
+	r = self.linkCls.make({"points": pts, "freeEnd": true, "fixedLength": true})
 	self.world.addPart r
 	last = self.linkPts[-1][0].tieWorld(self.linkPts[-1][1])
 	r.setLength r.measure + sqrt((mx - last[0]) ^ 2 + (my - last[1]) ^ 2)

@@ -57,10 +57,11 @@ disk/            mounted as /usr; the game
   part.ms          the Part base class
   parts.ms         the registry and the palette catalog; imports parts/
   glow.ms          the pool of light a lamp or a flame lays on the board
+  heat.ms          what is alight, and what is near enough to catch
   particles.ms     the particle system, and the Flame built on it
   parts/           one module per type: balls, block, platform, lever,
                    balance, weight, balloon, basket, scissors, gears,
-                   belts, tiePoint, pulleys, rope, candle; and the
+                   belts, tiePoint, pulleys, rope, candle, fuse; and the
                    electrical ones -- electric (the outlet), switches,
                    relay, motor, wire, lamp
   parts/rope.ms    the Rope part: its constraint, its beads, its drawing,
@@ -116,14 +117,17 @@ because by `update` the step has already been solved.
 `config.timestep` against an accumulator capped at `maxStepsPerFrame`.  Design
 mode never steps but still needs collision, to reject overlapping placements.
 
-Play may *destroy* parts -- scissors cut a rope into two loose ones, and a
-balloon will one day pop -- and Stop still has to put the design back.  Putting
-the bodies where the spec says is no help for a part that no longer exists, so
-`play` writes the whole design out with `save`, `addPart` / `removePart` note
-that something changed, and `stop` reads it back if anything did.  A part that
-wants to add or remove parts mid-step must queue the work rather than do it,
-because `advance` is walking the very list it would be changing; `cutRope` /
-`applyRopeCuts` is that queue.
+Play may *destroy* parts -- scissors cut a rope into two loose ones, a fuse
+comes apart where it catches and burns away to nothing -- and Stop still has
+to put the design back.  Putting the bodies where the spec says is no help for
+a part that no longer exists, so `play` writes the whole design out with
+`save`, `addPart` / `removePart` note that something changed, and `stop` reads
+it back if anything did.  A part that wants to add or remove parts mid-step
+must queue the work rather than do it, because `advance` is walking the very
+list it would be changing.  `GameWorld.defer` is that queue: it takes the part
+and a word of its own choosing, and hands both back to the part's
+`applyDeferred` once the step is over.  `cutRope` is a named wrapper on it,
+so the scissors need not know it is there.
 
 ### A few things about the physics engine
 
@@ -256,6 +260,34 @@ turn it into spin.  Ropes that share a body are relaxed together.  The solve
 is in two passes -- impulses for the velocity, then a geometric pass for the
 length -- and `rope.ms` explains why folding the second into the first (the
 usual Baumgarte bias) is wrong here rather than merely inexact.
+
+### Fire
+
+Heat is points, not a field (`heat.ms`).  A part that is burning hands back
+one or more *sources* -- a place, a reach, and how fierce it is -- from
+`Part.heatSources`; a part that can catch asks `heat.at` how hot it is where
+it stands.  There is no diffusion, nothing cools, and nothing has a
+temperature.  That is the same ceiling `circuit.ms` puts on electricity, for
+the same reason.  The one real number is `power`, because a lens will
+eventually have to light things a candle cannot, and that keeps the catalogue
+of what lights what down to two constants per part instead of code.
+
+Sources are gathered once a step, in `advance`, after the physics has moved
+everything and before any part asks whether it has caught.  **Design mode
+never collects and never asks** -- a fuse laid against a lit candle while the
+machine is being built has to sit there unburnt.
+
+A **fuse** (`parts/fuse.ms`) is a Rope with the pull taken out (like a wire)
+and the hang taken out as well: no bead chain, ever.  Its geometry is a
+polyline in world coordinates in `spec.shape`, taken from its fastenings every
+frame in design mode and frozen once play starts -- which is what "stiff" and
+"pinned to the board" amount to, and is also what lets half a burnt fuse stay
+hanging in the air exactly where the whole one was.  Burning is two numbers,
+how much has gone from each end; catching is a walk along what is left,
+asking `heat.at` every few pixels.  Near an end, that end lights.  Anywhere
+else the fuse comes apart into two fuses, each alight at the new end.  The
+front is itself a heat source, which is the whole of how a fuse lights the
+next thing -- nothing in `fuse.ms` knows what a candle is.
 
 ### Light, and things that are only for the look of them
 

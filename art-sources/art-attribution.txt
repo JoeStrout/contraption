@@ -11,3 +11,5 @@ wicker_basket: "[REMAKE] - Net basket" (https://skfb.ly/oELTO) by RaynaudL is li
 light_bulb: "Light bulb" (https://skfb.ly/6RYTE) by takeboncog is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 candle: "Candle" (https://skfb.ly/6WMSw) by KaitlinKelly is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+fire_crackers: "Fire Crackers" (https://skfb.ly/pysL8) by Ankitimation is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).

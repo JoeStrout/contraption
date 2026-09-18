@@ -56,9 +56,13 @@ from mathutils import Matrix, Vector
 #            subsurface scattering on the wax objects so the light gets into
 #            them.  See light_flame.
 #   view     for a prop with no joints, which way it faces: yaw spins it about
-#            its own upright axis, pitch tips its top toward the camera.  A
-#            jointless prop has nothing to measure an orientation from, and
-#            models of this kind arrive upright anyway.
+#            its own upright axis, pitch tips its top toward the camera, and
+#            roll then turns the picture counterclockwise on screen -- which
+#            is how a model lying on its side gets stood up.  A jointless
+#            prop has nothing to measure an orientation from, and models of
+#            this kind mostly arrive upright anyway.
+#   keep     for a model holding several things, the glTF node names of the
+#            ones to render; every mesh not under one of them is dropped
 # ---------------------------------------------------------------------------
 
 PROPS = [
@@ -122,6 +126,27 @@ PROPS = [
 	                wax=["pCylinder1", "pCylinder5", "pCylinder6", "pCylinder7",
 	                     "pSphere1", "pSphere2"],
 	                color="#FFB050")),
+
+	# "Fire Crackers" by Ankitimation, CC-BY-4.0 -- see art-attribution.txt.
+	# The model is a whole spread of fireworks laid out together; each prop
+	# takes one of them.  Four sticks of dynamite bound with a band, standing
+	# on end with the fuse out of the middle -- and it arrives that way up.
+	dict(name="dynamite", size=[36, 56], frames=1,
+	     model="../models/fire_crackers.glb", keep=["Cylinder.034_16"],
+	     view=dict(yaw=0.0, pitch=0.0)),
+	# A single firecracker, lying down with its fuse to the right.  It lies
+	# 15 degrees off the model's X axis, which the yaw takes out; seen from
+	# the side, its fuse's upturned tip shows.
+	dict(name="firecracker", size=[40, 12], frames=1,
+	     model="../models/fire_crackers.glb", keep=["Cylinder.031_8"],
+	     view=dict(yaw=15.0, pitch=0.0)),
+	# The rocket, stood on its stick with its nose up.  It lies along the
+	# model's X axis, so it is seen from above (pitch 90), where its fuse
+	# curls out to the side instead of hiding behind the tube, and roll 90
+	# stands it up.
+	dict(name="rocket", size=[40, 240], frames=1,
+	     model="../models/fire_crackers.glb", keep=["Cylinder.033_12"],
+	     view=dict(yaw=0.0, pitch=90.0, roll=90.0)),
 ]
 
 # Padding around the model, as a fraction of the frame.  Unlike the balls --
@@ -224,6 +249,20 @@ def import_model(spec, here):
 	for obj in imported:
 		# The model's own animation would fight the poses we set below.
 		obj.animation_data_clear()
+	keep = spec.get("keep")
+	if keep:
+		def kept(obj):
+			while obj is not None:
+				if obj.name in keep:
+					return True
+				obj = obj.parent
+			return False
+		drop = [o for o in imported if o.type == "MESH" and not kept(o)]
+		if len(drop) == len([o for o in imported if o.type == "MESH"]):
+			sys.exit("keep: nothing named %s" % keep)
+		for obj in drop:
+			imported.remove(obj)
+			bpy.data.objects.remove(obj)
 	return imported
 
 
@@ -359,13 +398,15 @@ def orient_by_view(imported, spec):
 	What it does have is glTF's own up axis, which the importer turns into +Z,
 	so the whole job is standing that up on screen: -90 degrees about X puts
 	model +Z on screen +Y.  `pitch` past that tips the top toward the camera,
-	and `yaw` spins the prop about its own upright axis first.
+	`yaw` spins the prop about its own upright axis first, and `roll` turns
+	the result about the camera's axis last.
 	"""
 	view = spec.get("view", {})
 	v = world_verts([o for o in imported if o.type == "MESH"])
 	centre = (v.min(0) + v.max(0)) / 2.0
 
-	rot = (Matrix.Rotation(math.radians(view.get("pitch", 0.0) - 90.0), 4, "X")
+	rot = (Matrix.Rotation(math.radians(view.get("roll", 0.0)), 4, "Z")
+	       @ Matrix.Rotation(math.radians(view.get("pitch", 0.0) - 90.0), 4, "X")
 	       @ Matrix.Rotation(math.radians(view.get("yaw", 0.0)), 4, "Z"))
 
 	empty = bpy.data.objects.new("prop", None)

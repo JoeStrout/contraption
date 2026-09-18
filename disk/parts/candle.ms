@@ -27,7 +27,7 @@
 
 import "importUtil"
 ensureImport ["config", "part", "artUtil", "physics", "util", "glow",
-  "particles"]
+  "particles", "heat"]
 
 offImg = file.loadImage("/usr/pics/candle-off.png")
 onImg = file.loadImage("/usr/pics/candle-on.png")
@@ -76,6 +76,48 @@ Candle.flame = null
 Candle.init = function
 	super.init
 	self.lit = self.spec.lit
+end function
+
+// The wick is the one place worth fastening anything to, and it is where a
+// fuse wants to end: run one from a lit candle's wick to a dark one's and the
+// flame is already touching it.
+Candle.tieLocals = function
+	return [toLocal(wickPix[0], wickPix[1])]
+end function
+
+// Where the wick has got to, which is where the fire is.  Worked out from the
+// body rather than from the tie list so that syncSprites can use it before
+// anything has asked for a tie point.
+Candle.wickWorld = function
+	if not self.bodies then return null
+	b = self.bodies[0]
+	w = toLocal(wickPix[0], wickPix[1])
+	c = cos(b.angle); sn = sin(b.angle)
+	return [b.x + w[0] * c - w[1] * sn, b.y + w[0] * sn + w[1] * c]
+end function
+
+// A lit candle is hot a little above its wick, where the flame is, and that
+// is the whole of how it lights a fuse.  See heat.ms.
+Candle.heatSources = function
+	if not self.lit then return []
+	w = self.wickWorld
+	if w == null then return []
+	return [heat.source(w[0], w[1] + glowRise, config.candleHeatRadius,
+	  config.candleHeat)]
+end function
+
+// ...and an unlit one catches from anything hot enough at that same place,
+// which is what the far end of a fuse is by the time it gets there.  This is
+// runtime state and never touches spec: Stop puts the candle back to however
+// the design left it.
+Candle.update = function(dt)
+	super.update dt
+	if self.lit or self.world == null then return
+	w = self.wickWorld
+	if w == null then return
+	if heat.at(self.world, w[0], w[1]) >= config.candleLightHeat then
+		self.setLit true
+	end if
 end function
 
 Candle.size = function
@@ -206,9 +248,9 @@ Candle.syncSprites = function
 	sp.y = b.y + spriteOff[0] * sn + spriteOff[1] * c
 	sp.rotation = b.angle * 180 / pi
 
-	w = toLocal(wickPix[0], wickPix[1])
-	wx = b.x + w[0] * c - w[1] * sn
-	wy = b.y + w[0] * sn + w[1] * c
+	w = self.wickWorld
+	wx = w[0]
+	wy = w[1]
 	if self.flame != null then self.flame.moveTo wx, wy
 	// The pool of light hangs where the bright part of the flame is, which is
 	// a little above the wick rather than on it.

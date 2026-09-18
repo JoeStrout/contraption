@@ -257,3 +257,58 @@ flameStartScale = 0.035     // about 8px across: a flame is taller than wide
 flameEndScale = 0.012
 flameHotColor = "#FFF0A0D0" // at the wick...
 flameCoolColor = "#FF400000" // ...and at the top, gone
+
+// Heat: what is hot enough to light what.  A source carries `heat` and
+// whatever might catch carries the `light` it takes, and the whole of the
+// catalogue is those two numbers meeting.  See heat.ms.
+candleHeat = 1              // a flame will light a fuse...
+candleHeatRadius = 9
+candleLightHeat = 0.9       // ...and it takes about a flame to light a wick
+fuseHeat = 1                // a burning fuse is as hot as the flame that lit it
+fuseHeatRadius = 7
+fuseLightHeat = 0.5         // and a fuse is the easiest thing on the board to light
+
+// The fuse: a stiff cord between two fastenings, which burns.
+//
+// Stiff is the whole of what makes it useful.  A rope and a wire hang, and a
+// fuse that hung would only ever be able to light things lying on the floor,
+// so this one is pinned to the board along the line it was run and stays
+// there -- burning does not make it fall.
+fuseColor = "#4A4038"
+fuseWidth = 3
+fuseEmberColor = "#FFA030"  // the last inch before the front
+fuseEmberLength = 10
+fuseBurnRate = 18           // px/sec, so a run across two grid cells is ~2s
+fuseSampleStep = 5          // px between the points that ask whether they caught
+// How near an end a catch has to be to count as that end catching, rather
+// than as the fuse being lit in the middle and coming apart in two.
+fuseEndSlop = 6
+fuseGlowColor = "#FFB060"   // the little pool of light at the front
+fuseGlowAlpha = 0.35
+fuseGlowScale = 0.12
+
+// Sparks off the burning front: a sparkler, which is what a fuse sounds like
+// it should look like.  Unlike the flame these *are* a spray of debris --
+// thrown out hard in every direction, slowed by the air and pulled down -- so
+// they are a plain ParticleSystem with nothing subclassed at all, which is
+// the thing that system was written to make easy.
+//
+// They are drawn from the same soft blob everything else here is, small and
+// at full alpha, because a spark has to read as a *point of light* against a
+// pale pegboard: translucent and it disappears, large and it is a fireball.
+// How far they get is `speed / drag` -- about fifty pixels -- and not the
+// speed alone, since the air has most of it within the first tenth of a
+// second, which is also what gives the spray its shape.
+sparkCount = 44             // sprites each front costs, forever
+sparkRate = 70
+sparkLife = 0.55
+sparkLifeVar = 0.2
+sparkSpeed = 170
+sparkSpeedVar = 90
+sparkSpread = pi            // every direction: a sparkler throws them all ways
+sparkGravity = -220         // px/sec^2
+sparkDrag = 2.5             // fraction of speed shed per second
+sparkStartScale = 0.03      // about 7px of blob, whose core is a bright point
+sparkEndScale = 0.008
+sparkHotColor = "#FFFFF0FF" // white hot, and opaque, or it will not be seen
+sparkCoolColor = "#FF500000"

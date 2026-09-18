@@ -4,7 +4,7 @@
 
 import "importUtil"
 ensureImport ["config", "physics", "part", "parts", "torque", "circuit",
-  "json", "util"]
+  "heat", "json", "util"]
 
 // physicsCore is a native intrinsic where the host has one, and the
 // MiniScript fallback (reachable through the physics module) where it does
@@ -37,7 +37,8 @@ GameWorld.make = function(partDisp)
 	w.pairScratch = Matrix.ofSize(0, 2)
 	w.contactScratch = Matrix.ofSize(0, core.ContactColumns)
 	w.leftover = 0      // unconsumed real time, carried between frames
-	w.ropeCuts = []     // cuts asked for mid-step; see cutRope
+	w.pending = []      // work asked for mid-step; see defer
+	w.heat = []         // what is alight this step; see heat.ms
 	w.snapshot = null   // the design as it was when play began
 	w.partsChanged = false
 	w.trains = []       // the gear trains, rebuilt whenever the design changes
@@ -280,7 +281,8 @@ end function
 GameWorld.stop = function
 	if self.mode == GameWorld.DESIGN then return
 	self.mode = GameWorld.DESIGN
-	self.ropeCuts = []
+	self.pending = []
+	self.heat = []
 	self.torqueDirty = true
 	self.circuitDirty = true
 	for p in self.parts
@@ -327,11 +329,15 @@ GameWorld.advance = function(elapsed)
 		self.phys.step dt
 		self.solveRopes dt
 		self.solveTorque dt
+		// What is alight, before anything asks whether it has caught.  The
+		// sources are where the parts have just been put, so this comes after
+		// the step rather than before it.  See heat.ms.
+		heat.collect self
 		for p in self.parts
 			p.settle dt
 			p.update dt
 		end for
-		if self.ropeCuts then self.applyRopeCuts
+		if self.pending then self.applyPending
 	end for
 	for p in self.parts
 		p.syncSprites
@@ -381,15 +387,29 @@ end function
 // Queued rather than done on the spot, because whoever asks for it is a part
 // in the middle of its own update hook, and cutting adds and removes parts --
 // which would shift the very list advance is walking.
-GameWorld.cutRope = function(rope, i, t)
-	self.ropeCuts.push [rope, i, t]
+// Work a part wants done once the step is over.  Anything that adds or
+// removes parts has to come through here, because `advance` is walking the
+// very list it would be changing: a rope being cut in two, a fuse splitting
+// where it caught, a fuse that has burnt away to nothing.
+//
+// `what` and `arg` mean nothing here -- they are handed straight back to the
+// part's own `applyDeferred`, which is the only thing that has to understand
+// them.
+GameWorld.defer = function(part, what, arg=null)
+	self.pending.push [part, what, arg]
 end function
 
-GameWorld.applyRopeCuts = function
-	cuts = self.ropeCuts
-	self.ropeCuts = []
-	for c in cuts
-		c[0].cutAt c[1], c[2]
+// The one cut everything outside rope.ms asks for by name, since the
+// scissors have no business knowing how the queue works.
+GameWorld.cutRope = function(rope, i, t)
+	self.defer rope, "cut", [i, t]
+end function
+
+GameWorld.applyPending = function
+	work = self.pending
+	self.pending = []
+	for it in work
+		it[0].applyDeferred it[1], it[2]
 	end for
 end function
 

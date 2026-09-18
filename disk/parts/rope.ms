@@ -73,6 +73,12 @@ Rope.pts = null                     // per-instance: resolved [part, tieIndex]
 // A wire is this same line between terminals instead of tie points, and
 // these two are the whole of the difference; see parts/wire.ms.
 Rope.pointKey = "tie"
+// Two things the editor asks of a link's class while it is being run: whether
+// a wheel in the middle of the run is a place to carry on over, and whether
+// Return may cut it off in mid air.  A fuse says no to both -- it is stiff,
+// and stuck to the board, so it wants a fastening at each end.
+Rope.canRoute = true
+Rope.allowsLooseEnd = true
 Rope.jac = null                     // this step's rows: one per body pulled on
 Rope.mEff = 0
 Rope.tension = 0                    // kept between steps, to warm start
@@ -574,6 +580,11 @@ Rope.cutAt = function(i, t)
 	if head then out.push self.makePiece(w, head, before)
 	if tail then out.push self.makePiece(w, tail, after)
 	return out
+end function
+
+// The cut, once the step it was asked for in is over.  See GameWorld.defer.
+Rope.applyDeferred = function(what, arg)
+	if what == "cut" then self.cutAt arg[0], arg[1]
 end function
 
 // One piece of a cut rope: tied where it still can be, loose from there on.

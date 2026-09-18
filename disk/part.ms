@@ -456,6 +456,21 @@ Part.tintSprites = function(wash="#FFFFFF")
 	end for
 end function
 
+// Subclass hook: what this part has got that is hot enough to set something
+// alight, as [x, y, radius, power] each.  A lit candle has its flame, a
+// burning fuse has its front.  Gathered once a step and only in play; see
+// heat.ms.
+Part.heatSources = function
+	return []
+end function
+
+// Subclass hook: work this part asked to have done once the step is over,
+// because doing it during the step would mean adding to or removing from the
+// list `advance` is walking.  `what` is whatever the part passed to
+// GameWorld.defer and means nothing outside the part that asked.
+Part.applyDeferred = function(what, arg)
+end function
+
 // Subclass hook: one frame of whatever the part does purely for the look of
 // it -- a flame's particles, a glow's flicker.  Unlike `update` this runs in
 // every mode but PAUSED, design mode included, because a lit candle should
