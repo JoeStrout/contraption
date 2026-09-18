@@ -56,9 +56,13 @@ disk/            mounted as /usr; the game
   config.ms        layout, tuning, colors -- all magic numbers live here
   part.ms          the Part base class
   parts.ms         the registry and the palette catalog; imports parts/
+  glow.ms          the pool of light a lamp or a flame lays on the board
+  particles.ms     the particle system, and the Flame built on it
   parts/           one module per type: balls, block, platform, lever,
                    balance, weight, balloon, basket, scissors, gears,
-                   tiePoint, pulleys, and rope
+                   belts, tiePoint, pulleys, rope, candle; and the
+                   electrical ones -- electric (the outlet), switches,
+                   relay, motor, wire, lamp
   parts/rope.ms    the Rope part: its constraint, its beads, its drawing,
                    and how it comes apart when something cuts it
   torque.ms        gear trains: which wheels turn together, and how fast
@@ -253,6 +257,38 @@ is in two passes -- impulses for the velocity, then a geometric pass for the
 length -- and `rope.ms` explains why folding the second into the first (the
 usual Baumgarte bias) is wrong here rather than merely inexact.
 
+### Light, and things that are only for the look of them
+
+A lamp or a candle lays a **glow** on the board: one sprite, one pre-drawn
+radial gradient, tinted and faded, and that is all of it (`glow.ms`).  There
+is no occlusion -- nothing is shadowed and nothing is lit -- because nothing
+in the game yet asks what light *reaches*.  When a lens arrives and things
+start catching fire, that question gets answered with rays, in its own
+module; the glow will still be the picture that says a thing is burning.
+Keeping the two apart is the point.
+
+A **particle system** (`particles.ms`) is a fixed pool of sprites, allocated
+once.  A dead particle is not removed from the pool, it simply has no image,
+so nothing is allocated per particle.
+
+The pool goes on screen as **one entry**: a member of `SpriteDisplay.sprites`
+may itself be a list of sprites, drawn depth first, so a whole effect holds a
+single place in the draw order and nothing reordering the layer can shuffle
+it apart.  A part that has one pushes the pool into its own `sprites` as that
+one entry, and then `destroy`, `moveSpritesTo` and the restacking all account
+for it without knowing what it is; `Candle` does that with a `Flame`, and
+carries a `Glow` beside it.  So **an entry of `Part.sprites` may be a list**,
+which is why `Part.tintSprites` steps over one and why the default
+`Part.syncSprites` (which pairs sprites with bodies by index) is only for
+parts whose sprites are all plain sprites.
+
+Both of these move without the physics moving them, and both must keep moving
+in design mode -- a lit candle burns while you build around it.  So they run
+from `Part.updateEffects`, which `GameWorld.updateEffects` calls every frame
+in every mode but PAUSED, off the world's own clock (`effectTime`) rather
+than `time`, so a pause does not make a flame jump.  Nothing in there may
+touch the physics or the spec.
+
 ### Coordinates
 
 Mini Micro screen coordinates throughout — y up, origin lower left — so gravity
@@ -277,11 +313,15 @@ A part owns its sprites and knows which display holds them (`Part.spriteDisp`,
 `moveSpritesTo`), so `destroy` always finds them wherever the editor has put
 them.
 
-All eight slots are taken, so a part that must draw over its neighbours
-cannot have one of its own: `Part.drawsInFront` instead keeps its sprites at
-the end of the part layer, where sprites draw last, and
-`GameWorld.raiseFrontParts` restores that order whenever a part joins the
-layer.  A basket uses it, so that what it carries rides inside it.
+All eight slots are taken, so anything that must draw over its neighbours --
+or under all of them -- cannot have one of its own.  Position in the part
+layer stands in for it, sprites being drawn in list order, and
+`GameWorld.restackSprites` puts that order back whenever anything joins the
+layer.  Three hooks ask for it: `Part.drawsInFront` keeps a whole part's
+sprites at the end (a basket, so that what it carries rides inside it), and
+`Part.backSprites` / `Part.frontSprites` name single sprites that belong at
+one end of the layer whatever the part they belong to is doing -- a lamp's
+pool of light is one, and the lamp itself stands in the ordinary order.
 
 ## Conventions
 

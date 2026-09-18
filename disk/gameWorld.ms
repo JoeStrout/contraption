@@ -43,6 +43,7 @@ GameWorld.make = function(partDisp)
 	w.trains = []       // the gear trains, rebuilt whenever the design changes
 	w.torqueDirty = true
 	w.circuitDirty = true   // ...and the nets, likewise; see solveCircuit
+	w.effectTime = 0    // seconds of flame and flicker; see updateEffects
 	return w
 end function
 
@@ -60,25 +61,48 @@ GameWorld.addPart = function(p)
 	if p.turns or p.isBelt then self.torqueDirty = true
 	self.circuitDirty = true
 	p.build self
-	self.raiseFrontParts
+	self.restackSprites
 	return p
 end function
 
-// Sprites on one display draw in list order, so the only way a part can be
-// made to draw over the others is to keep its sprites at the end of the
-// list.  There is no display slot left to give it instead: all eight are
-// spoken for, and the ones above the parts (the drag layer, the panel, the
-// selection overlay) are all things that must stay above it.
+// Sprites on one display draw in list order, so the only way something can be
+// made to draw over the others -- or under them -- is to keep its sprites at
+// one end of the list.  There is no display slot left to give it instead: all
+// eight are spoken for, and the ones above the parts (the drag layer, the
+// panel, the selection overlay) are all things that must stay above it.
 //
-// So a part that draws in front is pushed back to the end whenever anything
-// new is added to the layer, which is the only moment the order can change.
-GameWorld.raiseFrontParts = function
+// So the order is restored whenever anything joins the layer, which is the
+// only moment it can change.  Three kinds of thing ask for it: a part that
+// draws in front of its neighbours (a basket, so that what it carries rides
+// inside it), and single sprites that belong at the very back or the very
+// front whatever the part they belong to is doing -- a lamp's pool of light
+// is one, and it is the part itself that stands in the ordinary order.
+GameWorld.restackSprites = function
+	list = self.partDisp.sprites
+	// Back first, then the middle, then the front: each pass leaves the one
+	// before it alone, since it only ever moves sprites past it.
+	for p in self.parts
+		if p.spriteDisp == null then continue
+		if not refEquals(p.spriteDisp, self.partDisp) then continue
+		for sp in p.backSprites
+			util.removeRef list, sp
+			list.insert 0, sp
+		end for
+	end for
 	for p in self.parts
 		if not p.drawsInFront or p.spriteDisp == null then continue
 		if not refEquals(p.spriteDisp, self.partDisp) then continue
 		for sp in p.sprites
-			util.removeRef self.partDisp.sprites, sp
-			self.partDisp.sprites.push sp
+			util.removeRef list, sp
+			list.push sp
+		end for
+	end for
+	for p in self.parts
+		if p.spriteDisp == null then continue
+		if not refEquals(p.spriteDisp, self.partDisp) then continue
+		for sp in p.frontSprites
+			util.removeRef list, sp
+			list.push sp
 		end for
 	end for
 end function
@@ -401,6 +425,21 @@ end function
 // with the layout, so that moving something a rope is tied to shortens or
 // lengthens the rope instead of leaving it slack.  Paused, nothing moves:
 // the length is part of the run by then, and must not be touched.
+// One frame of everything that is only for the look of it: flames, flicker,
+// anything else that moves without the physics moving it.  This runs in
+// design mode as well as in play -- a lit candle burns while you build around
+// it -- but not while paused, where a still picture is the whole point.
+//
+// The clock is the world's own rather than `time`, so that it stops when the
+// world does and a flame does not jump forward over a pause.
+GameWorld.updateEffects = function(dt)
+	if self.mode == GameWorld.PAUSED then return
+	self.effectTime = self.effectTime + dt
+	for p in self.parts
+		p.updateEffects dt
+	end for
+end function
+
 GameWorld.updateRopes = function(dt)
 	if self.mode == GameWorld.PAUSED then return
 	designing = self.mode == GameWorld.DESIGN

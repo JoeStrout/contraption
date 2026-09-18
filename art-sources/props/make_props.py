@@ -45,6 +45,16 @@ from mathutils import Matrix, Vector
 #            (not as the glTF file writes it -- see the note on scissors)
 #   open     scale on every joint angle, for opening wider or less wide than
 #            the model's own animation does
+#   model    a .glb, or a .blend -- whose meshes and empties are taken, and
+#            its lights and cameras left behind, since the scene has its own
+#   sprite   the output file's name, when the game wants it named for what
+#            it is rather than by size (bulb-off.png, not bulb_40x56.png)
+#   glow     lights the prop up: which faces of which mesh are the filament
+#            (those wholly above a height in the mesh's own frame), which
+#            material is the glass, and the colour of the light.  See light_up.
+#   flame    lights a candle: a point light above the named wick object, and
+#            subsurface scattering on the wax objects so the light gets into
+#            them.  See light_flame.
 #   view     for a prop with no joints, which way it faces: yaw spins it about
 #            its own upright axis, pitch tips its top toward the camera.  A
 #            jointless prop has nothing to measure an orientation from, and
@@ -81,6 +91,37 @@ PROPS = [
 	     # rather than edge on, and the silhouette comes out 0.93 wide to
 	     # tall, so a square cell wastes almost nothing.
 	     view=dict(yaw=0.0, pitch=0.0)),
+
+	# "Light bulb" by takeboncog, CC-BY-4.0 -- see art-attribution.txt.  The
+	# porcelain socket is ours: make_lamp.py builds it around the bulb, and
+	# the .blend is that, saved after nudging the bulb down into the collar.
+	dict(name="bulb", sprite="bulb-off", size=[40, 56], frames=1,
+	     model="../models/bulbWithSocket.blend",
+	     view=dict(yaw=0.0, pitch=0.0)),
+	# The same, switched on.  The filament is the coil that sits entirely
+	# above z = 0.38 in the bulb's frame; the support wires reach up into it,
+	# and their tips glowing too is what a real one does.
+	dict(name="bulb-lit", sprite="bulb-on", size=[40, 56], frames=1,
+	     model="../models/bulbWithSocket.blend",
+	     view=dict(yaw=0.0, pitch=0.0),
+	     glow=dict(mesh="defaultMaterial.001", above=0.38, glass="glass",
+	               color="#FFC46E")),
+
+	# "Candle" by KaitlinKelly, CC-BY-4.0 -- see art-attribution.txt
+	# Yaw 90 turns the finger ring out to the side, where it reads as a
+	# chamberstick, and brings the wax drips round to the front.
+	dict(name="candle", sprite="candle-off", size=[36, 56], frames=1,
+	     model="../models/candle.glb",
+	     view=dict(yaw=90.0, pitch=0.0)),
+	# The same, burning.  There is no flame -- that is the game's to draw --
+	# only its light, hung just above the wick, and wax that lets it in.
+	dict(name="candle-lit", sprite="candle-on", size=[36, 56], frames=1,
+	     model="../models/candle.glb",
+	     view=dict(yaw=90.0, pitch=0.0),
+	     flame=dict(wick="pCylinder4", height=0.08, energy=120, depth=0.6,
+	                wax=["pCylinder1", "pCylinder5", "pCylinder6", "pCylinder7",
+	                     "pSphere1", "pSphere2"],
+	                color="#FFB050")),
 ]
 
 # Padding around the model, as a fraction of the frame.  Unlike the balls --
@@ -167,7 +208,16 @@ def import_model(spec, here):
 	if not os.path.exists(path):
 		sys.exit("model not found: %s" % path)
 	before = set(bpy.data.objects)
-	bpy.ops.import_scene.gltf(filepath=path)
+	if path.endswith(".blend"):
+		with bpy.data.libraries.load(path, link=False) as (src, dst):
+			dst.objects = list(src.objects)
+		for obj in dst.objects:
+			if obj.type in ("MESH", "EMPTY"):
+				bpy.context.collection.objects.link(obj)
+			else:
+				bpy.data.objects.remove(obj)
+	else:
+		bpy.ops.import_scene.gltf(filepath=path)
 	imported = [o for o in bpy.data.objects if o not in before]
 	if not imported:
 		sys.exit("nothing imported from %s" % path)
@@ -389,6 +439,84 @@ def recolor(imported, spec):
 			poly.material_index = 0 if c.x >= cut else 1
 
 
+def light_up(imported, spec):
+	"""Switch a lamp on: a white-hot filament, the glass filled with its warm
+	glow, and a light at the filament to throw some of it on the socket.
+
+	At sprite size a clear bulb that is merely emitting from a thin coil
+	reads as off -- the coil is a pixel or two -- so the glass itself glows,
+	most strongly where it faces the camera and thinning toward the rim, as
+	light seen through more glass at the edge would.
+	"""
+	glow = spec.get("glow")
+	if not glow:
+		return
+	color = tuple(hex_to_linear(glow["color"])) + (1.0,)
+
+	hot = bpy.data.materials.new("filament")
+	hot.use_nodes = True
+	nodes = hot.node_tree.nodes
+	nodes.remove(nodes["Principled BSDF"])
+	em = nodes.new("ShaderNodeEmission")
+	em.inputs["Color"].default_value = (1.0, 0.9, 0.75, 1.0)
+	em.inputs["Strength"].default_value = 60.0
+	hot.node_tree.links.new(em.outputs[0],
+	                        nodes["Material Output"].inputs["Surface"])
+
+	lit = bpy.data.materials.new("lit glass")
+	lit.use_nodes = True
+	nodes, links = lit.node_tree.nodes, lit.node_tree.links
+	nodes.remove(nodes["Principled BSDF"])
+	facing = nodes.new("ShaderNodeLayerWeight")
+	fac = nodes.new("ShaderNodeMath")
+	fac.operation = "MULTIPLY_ADD"
+	fac.inputs[1].default_value = -0.3     # 0.55 face on, 0.25 at the rim
+	fac.inputs[2].default_value = 0.55
+	clear = nodes.new("ShaderNodeBsdfTransparent")
+	em = nodes.new("ShaderNodeEmission")
+	em.inputs["Color"].default_value = color
+	em.inputs["Strength"].default_value = 1.0
+	mix = nodes.new("ShaderNodeMixShader")
+	links.new(facing.outputs["Facing"], fac.inputs[0])
+	links.new(fac.outputs[0], mix.inputs["Fac"])
+	links.new(clear.outputs[0], mix.inputs[1])
+	links.new(em.outputs[0], mix.inputs[2])
+	links.new(mix.outputs[0], nodes["Material Output"].inputs["Surface"])
+
+	coil = None
+	for obj in imported:
+		if obj.type != "MESH":
+			continue
+		mesh = obj.data
+		for i, slot in enumerate(obj.material_slots):
+			if slot.material and slot.material.name == glow["glass"]:
+				slot.link = "OBJECT"   # leave the mesh's own material alone
+				slot.material = lit
+		if obj.name == glow["mesh"]:
+			mesh.materials.append(hot)
+			idx = len(mesh.materials) - 1
+			pts = []
+			for poly in mesh.polygons:
+				if all(mesh.vertices[v].co.z > glow["above"]
+				       for v in poly.vertices):
+					poly.material_index = idx
+					pts.append(obj.matrix_world @ poly.center)
+			if not pts:
+				sys.exit("glow: no faces of %s above %g"
+				         % (glow["mesh"], glow["above"]))
+			coil = sum(pts, Vector()) / len(pts)
+	if coil is None:
+		sys.exit("glow: no mesh named %s" % glow["mesh"])
+
+	data = bpy.data.lights.new("filament", "POINT")
+	data.color = color[:3]
+	data.energy = 12.0
+	data.shadow_soft_size = 0.1
+	lamp = bpy.data.objects.new("filament", data)
+	lamp.location = coil
+	bpy.context.collection.objects.link(lamp)
+
+
 def frame_bounds(imported, joints, spec, frames):
 	"""The box that holds the model in every frame, so the camera can be fixed
 	and the pivot stays put from frame to frame."""
@@ -461,6 +589,65 @@ def supersample_for(size, args):
 	return max(2, min(8, int(round(200.0 / max(size)))))
 
 
+def light_flame(imported, spec):
+	"""Light a candle: a point light where its flame would be, and wax that
+	takes the light in and glows with it.
+
+	A light above an opaque candle lights its top face and the holder and
+	nothing else, which does not read as burning; what does is the upper wax
+	lit from within.  Subsurface scattering gives that, fading with depth
+	below the flame on its own.  The flame itself is left to the game.
+	"""
+	flame = spec.get("flame")
+	if not flame:
+		return
+	color = tuple(hex_to_linear(flame["color"]))
+
+	def named(name):
+		return [o for o in imported if o.type == "MESH" and
+		        (o.name == name or (o.parent is not None and
+		                            o.parent.name == name))]
+
+	wick = named(flame["wick"])
+	if not wick:
+		sys.exit("flame: no wick named %s" % flame["wick"])
+	# orient_by_view has stood the prop up, so the tip is the highest point
+	v = world_verts(wick)
+	tip = v[v[:, 1].argmax()]
+
+	# the model shares one material among all its parts, so the wax gets a
+	# copy of it rather than changing the holder too
+	done = {}
+	for name in flame["wax"]:
+		objs = named(name)
+		if not objs:
+			sys.exit("flame: no wax object named %s" % name)
+		for obj in objs:
+			for slot in obj.material_slots:
+				src = slot.material
+				if src is None:
+					continue
+				if src.name not in done:
+					wax = src.copy()
+					wax.name = src.name + " wax"
+					bsdf = wax.node_tree.nodes.get("Principled BSDF")
+					bsdf.inputs["Subsurface Weight"].default_value = 1.0
+					bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.45, 0.2)
+					bsdf.inputs["Subsurface Scale"].default_value = \
+						flame.get("depth", 0.15)
+					done[src.name] = wax
+				slot.link = "OBJECT"
+				slot.material = done[src.name]
+
+	data = bpy.data.lights.new("flame", "POINT")
+	data.color = color
+	data.energy = flame["energy"]
+	data.shadow_soft_size = 0.03
+	lamp = bpy.data.objects.new("flame", data)
+	lamp.location = Vector((tip[0], tip[1] + flame["height"], tip[2]))
+	bpy.context.collection.objects.link(lamp)
+
+
 def render_prop(spec, args, tmpdir):
 	cam = build_scene(args)
 	imported = import_model(spec, args.here)
@@ -469,6 +656,8 @@ def render_prop(spec, args, tmpdir):
 		check_axis(imported, joints, spec)
 	orient(imported, joints, spec)
 	recolor(imported, spec)
+	light_up(imported, spec)
+	light_flame(imported, spec)
 
 	frames = args.frames or spec.get("frames", 8)
 	width, height = args.size or spec["size"]
@@ -519,7 +708,9 @@ def render_prop(spec, args, tmpdir):
 		print("  %s frame %d/%d (open %.2f)"
 		      % (spec["name"], i + 1, frames, openness(i, frames)))
 
-	if frames == 1:
+	if spec.get("sprite"):
+		path = os.path.join(args.out, spec["sprite"] + ".png")
+	elif frames == 1:
 		path = os.path.join(args.out, "%s_%dx%d.png"
 		                    % (spec["name"], width, height))
 	else:

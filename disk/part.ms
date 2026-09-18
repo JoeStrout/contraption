@@ -32,7 +32,7 @@ Part.isRope = false                 // ropes are solved and drawn specially
 Part.draggable = true               // a rope is not moved by dragging it
 Part.mountsOnTie = false            // dropped on a tie point, not on the grid
 Part.drawsInFront = false           // kept at the top of the part layer; see
-                                    // GameWorld.raiseFrontParts
+                                    // GameWorld.restackSprites
 Part.wrapRadius = 0                 // pulleys: the wheel a rope bends around
 Part.turns = false                  // gears and wheels: a hub that turns with
                                     // whatever it is linked to; see torque.ms
@@ -46,7 +46,11 @@ Part.liveSource = false             // an outlet: its terminals are always live
 
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
-Part.sprites = null
+Part.sprites = null                 // per-instance.  An entry may itself be a
+                                    // *list* of sprites, which a SpriteDisplay
+                                    // draws depth first: that is how a whole
+                                    // particle pool holds one place in the
+                                    // draw order.  See particles.ms.
 Part.spriteDisp = null              // the display our sprites are currently on
 Part.world = null                   // the GameWorld we belong to
 Part.settleTime = 0                 // runtime: seconds spent barely moving
@@ -249,6 +253,71 @@ Part.conducts = function(i, j)
 end function
 
 //----------------------------------------------------------------------
+// Authored starting states
+//
+// Some parts have more than one sensible state to start a run in: a switch
+// open or shut, a candle lit or not.  Which one is *authored* state, so it
+// lives in spec and is restored by Stop like everything else there, and the
+// editor sets it by clicking a part that is already selected (see
+// Editor.tryCycle).
+//
+// A state is a fragment of spec rather than a number, because more than one
+// field may have to move together and because what a part calls its state is
+// then readable in the saved design instead of being an index into a list
+// this file happens to be keeping.
+//----------------------------------------------------------------------
+
+// Subclass hook: the states this part may be started in, in the order a
+// click walks through them.  Fewer than two means a click does nothing.
+Part.stateSpecs = function
+	return []
+end function
+
+// Which of them the part is in: the first whose every field matches spec, or
+// -1 for a spec that is none of them (a design saved before a state was
+// added, say), which cycles to the first.
+Part.stateIndex = function
+	ss = self.stateSpecs
+	for i in ss.indexes
+		hit = true
+		for kv in ss[i]
+			if not self.spec.hasIndex(kv.key) or self.spec[kv.key] != kv.value then
+				hit = false
+				break
+			end if
+		end for
+		if hit then return i
+	end for
+	return -1
+end function
+
+// Move on to the next state, and return whether there was one.  Design mode
+// only: this writes to spec, which is the authored state, and authoring it
+// is the whole point.
+Part.cycleState = function
+	ss = self.stateSpecs
+	if ss.len < 2 then return false
+	// Field by field, into the map we have: a fresh `spec + fragment` would
+	// leave anything already holding this part's spec looking at the old one.
+	for kv in ss[(self.stateIndex + 1) % ss.len]
+		self.spec[kv.key] = kv.value
+	end for
+	self.applyState
+	return true
+end function
+
+// Subclass hook: spec has just changed, so look like it.  The default puts
+// the bodies back where the new spec says and redraws, which covers a part
+// whose state is a *pose* -- a switch's paddle standing the other way.  A
+// part whose state is a different picture swaps its sprites' images here; a
+// part with runtime state derived from spec re-derives it here.
+Part.applyState = function
+	self.placeBodies
+	self.syncSprites
+	if self.world != null then self.world.syncDependents self
+end function
+
+//----------------------------------------------------------------------
 // Placement and picking
 //----------------------------------------------------------------------
 
@@ -376,10 +445,38 @@ end function
 // It is a hook because a part whose art carries a tint of its own (a
 // balloon is one flat gray picture, tinted to whatever color it is) has to
 // put that tint back underneath, rather than have it painted over.
+//
+// A nested list is a particle pool, whose tints are its own business -- they
+// are the particles' age -- and the wash is gone again the moment the part
+// is dropped, so it is left alone.
 Part.tintSprites = function(wash="#FFFFFF")
 	for sp in self.sprites
+		if sp isa list then continue
 		sp.tint = wash
 	end for
+end function
+
+// Subclass hook: one frame of whatever the part does purely for the look of
+// it -- a flame's particles, a glow's flicker.  Unlike `update` this runs in
+// every mode but PAUSED, design mode included, because a lit candle should
+// burn while the machine is still being built.  Nothing here may touch the
+// physics or the spec.  See GameWorld.updateEffects.
+Part.updateEffects = function(dt)
+end function
+
+// Subclass hooks: sprites that belong at the very back or the very front of
+// the part layer, wherever the part itself sits in it.  `drawsInFront` is the
+// same idea for a whole part; this is for one sprite of several, which is
+// what a lamp's pool of light is -- the lamp stands among the other parts and
+// its glow lies under (or over) all of them.  Returned sprites must be the
+// part's own, so that destroy and moveSpritesTo still account for them.
+// See GameWorld.restackSprites.
+Part.backSprites = function
+	return []
+end function
+
+Part.frontSprites = function
+	return []
 end function
 
 // Move this part's sprites to another display, and remember where they went.
@@ -394,7 +491,9 @@ Part.moveSpritesTo = function(disp)
 end function
 
 // Copy body transforms onto sprites.  The default pairs them up in order,
-// which is right as long as each shape is centered on its body's origin.
+// which is right as long as each shape is centered on its body's origin --
+// and so is only for parts whose sprites are all plain sprites; anything
+// with a nested list among them has its own ideas anyway and overrides this.
 Part.syncSprites = function
 	for i in self.sprites.indexes
 		if i >= self.bodies.len then break

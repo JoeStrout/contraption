@@ -4,7 +4,7 @@
 // All the interesting work in this half of the game is mechanical.  A switch
 // is electrically the dullest thing there is -- two terminals, joined or not
 // (`conducts`) -- and everything that makes one worth placing is what closes
-// it: something resting on a plate, something knocking a blade over.  So the
+// it: something resting on a plate, a ball rolling into a paddle.  So the
 // base class here is four lines, and the two parts below share nothing but
 // those four lines.
 //
@@ -181,86 +181,142 @@ PressurePlate.drawPlate = function(down)
 end function
 
 //----------------------------------------------------------------------
-// Blade switch: a knife switch, thrown by whatever hits it.
+// Toggle switch: a paddle that stands over to one side or the other.
 //
-// The blade is a bar on a pin, which is a Lever -- so this is one, and it
-// inherits the projection that makes a blow to the blade come out as spin
+// The paddle is a bar on a pin, which is a Lever -- so this is one, and it
+// inherits the projection that makes a blow to the paddle come out as spin
 // about the hinge rather than being thrown away.  What it does not inherit
-// is any of the geometry: the pivot is at one end of the bar instead of
-// under its middle, the travel runs from level to `openAngle` rather than
-// symmetrically either way, and the fulcrum is a base with a post at each
-// end, which are the two terminals.
+// is any of the geometry: the pivot is at the foot of the bar rather than
+// under its middle, the bar stands up rather than lying along the part, and
+// the fulcrum is a housing a grid cell tall with a post at each end, which
+// are the two terminals.  A ball reaches the paddle by rolling along the top
+// of that housing, which is why it is a cell tall: snapped, that surface is
+// level with the platform beside it and the run across is unbroken.
 //
 // It is a Lever and not a Switch, MiniScript having one parent per class, so
 // the four lines of Switch are repeated below rather than inherited.  The
 // pin is the part worth sharing; `conducts` is three words.
 //
-// A real knife switch snaps over center and stays where it is put, and this
-// one does too, from a detent torque that points at whichever end of the
-// travel the blade is nearer.  Make that torque bigger than the blade's own
-// weight can ever be (`detent` is in units of exactly that) and the switch
-// is bistable about the halfway point: nudge it past the middle and it
-// slams the rest of the way by itself, which is what a switch should feel
-// like and also what keeps it from hovering half-closed and chattering.
+// Both rest positions are `throwAngle` from vertical -- left is off, right
+// is on -- and that symmetry is the point of the part.  A blade switch can
+// only be knocked shut, so a ball may turn a thing on and never off again;
+// this one is thrown by a ball coming from either side, which is what makes
+// a machine able to change its own mind.
+//
+// A real toggle snaps over center and stays where it is put.  Half of that
+// is free here: a paddle leaning either way has its weight out to that side,
+// so gravity itself pushes it further over, and the thing is bistable with
+// no help at all.  What gravity cannot do is the last few degrees, because
+// its leverage falls to nothing exactly at upright -- so a paddle stood
+// straight up would sit there.  That is what `detent` is for: a constant
+// torque away from vertical, toward whichever side the paddle is already on,
+// which fills in the dead spot and makes the throw a snap rather than a
+// topple.  How big it is, is how hard a ball has to hit to flip the switch.
+// Past upright is where the state changes, since that is the moment the
+// outcome stops being in doubt.
 //----------------------------------------------------------------------
 
-// Near enough to level to count as made: a couple of degrees, which is well
-// inside where the detent will have carried it anyway.
-closeTilt = 3 * pi / 180
-
-globals.BladeSwitch = new Lever
-BladeSwitch.typeName = "bladeSwitch"
-BladeSwitch.displayName = "Blade Switch"
-BladeSwitch.defaultSpec = Lever.defaultSpec + {"length": 48, "thickness": 7,
-  "fulcrumHeight": 12, "pivotFrac": -1,
-  "color": "#C8CED6", "fulcrumColor": "#3A4450",
+globals.ToggleSwitch = new Lever
+ToggleSwitch.typeName = "toggleSwitch"
+ToggleSwitch.displayName = "Toggle Switch"
+ToggleSwitch.defaultSpec = Lever.defaultSpec + {"length": 30, "thickness": 10,
+  // A whole grid cell tall, so that the top surface lands on the lattice
+  // when the part is snapped, level with a platform's: that surface is what
+  // a ball rolls along on its way into the paddle, and a switch sunk half a
+  // cell below the run it sits in is a step, not a switch.
+  "fulcrumHeight": 20, "baseWidth": 40,
+  // How far below that surface the paddle is hinged.  Deep enough that the
+  // foot of the paddle stays inside the housing at full throw, shallow
+  // enough that it is not swinging about in a cellar.
+  "pivotDepth": 4,
+  "color": "#C8CED6", "gripColor": "#D8442C", "fulcrumColor": "#3A4450",
   "density": 2, "friction": 0.5, "restitution": 0.05,
-  // Stiff, so a thrown blade stops rather than bouncing in its jaw.
+  // Stiff, so a thrown paddle stops rather than bouncing against its stop.
   "angularDamping": 6,
-  "openAngle": 65 * pi / 180,
-  // The detent, as a multiple of the torque the blade's own weight makes.
-  // Over 1 at every angle it can stand at, so both ends hold.
-  "detent": 1.4,
+  "throwAngle": 30 * pi / 180,
+  // The detent, as a multiple of the torque the paddle's own weight would
+  // make held straight out.  This one is the whole of what holds the paddle
+  // at the top of its travel and most of what a ball has to overcome, so it
+  // is the knob to turn if the switch is too easy or too stubborn.
+  "detent": 0.6,
   "startOpen": true}
 
-BladeSwitch.closed = false
+ToggleSwitch.closed = false
 
-BladeSwitch.init = function
+ToggleSwitch.init = function
 	super.init
 	self.closed = self.startClosed
 end function
 
-BladeSwitch.startClosed = function
+ToggleSwitch.startClosed = function
 	return not self.spec.startOpen
 end function
 
-BladeSwitch.startTilt = function
-	if self.spec.startOpen then return self.spec.openAngle
-	return 0
+// The two ways it can be authored to start, which a click in the editor
+// walks through.  See the note on states in part.ms.
+ToggleSwitch.stateSpecs = function
+	return [{"startOpen": true}, {"startOpen": false}]
+end function
+
+// A new starting state is a new resting angle for the paddle, which
+// placeBodies works out for itself from startTilt; what it cannot know is
+// that the contacts have moved with it.
+ToggleSwitch.applyState = function
+	self.closed = self.startClosed
+	if self.world != null then self.world.circuitDirty = true
+	super.applyState
+end function
+
+// Off stands to the left of vertical, on to the right.
+ToggleSwitch.startTilt = function
+	if self.spec.startOpen then return pi / 2 + self.spec.throwAngle
+	return pi / 2 - self.spec.throwAngle
 end function
 
 //----------------------------------------------------------------------
 // Geometry
 //----------------------------------------------------------------------
 
-// The blade sweeps up and to the right of the hinge, so the part needs the
-// height of that sweep above the bar, and a little width past each post.
-BladeSwitch.headroom = function
-	return self.spec.length * sin(self.spec.openAngle)
+// Wide enough for the paddle's corner at full throw, and never narrower than
+// the base the terminals stand on; tall enough for the paddle leaning at
+// that same angle, above a housing it stands the full height of.
+//
+// Nothing reaches below the housing, so the bottom of the footprint is the
+// bottom of the housing -- which is what makes snapping the footprint put
+// the top surface on the lattice, `fulcrumHeight` being a whole cell.
+ToggleSwitch.size = function
+	s = self.spec
+	c = cos(s.throwAngle); sn = sin(s.throwAngle)
+	w = 2 * (s.length * sn + s.thickness / 2 * c)
+	if w < s.baseWidth then w = s.baseWidth
+	rise = s.length * c + s.thickness / 2 * sn
+	return [w, s.fulcrumHeight - s.pivotDepth + rise]
 end function
 
-BladeSwitch.size = function
-	sz = super.size
-	return [sz[0] + 12, sz[1]]
+// `pivotDepth` below the top of the housing, on its centerline.
+ToggleSwitch.pivotLocal = function
+	s = self.spec
+	return [0, -self.size[1] / 2 + s.fulcrumHeight - s.pivotDepth]
+end function
+
+// The housing's center, measured down from the pivot the two bodies share.
+// Everything about the base -- its shape, its picture, its posts -- is
+// written against this rather than against the part's own center, because
+// the pivot is the one point the paddle and the housing agree on.
+ToggleSwitch.baseOffset = function
+	s = self.spec
+	return s.pivotDepth - s.fulcrumHeight / 2
 end function
 
 // The base runs the whole footprint, not a triangle under the pivot.
-BladeSwitch.fulcrumHalfWidth = function
+ToggleSwitch.fulcrumHalfWidth = function
 	return self.size[0] / 2
 end function
 
-// Where the blade stands now, measured from the closed position.
-BladeSwitch.tilt = function
+// Where the paddle stands now, measured the way startTilt is: from the
+// part's own angle, so that upright is pi/2 and the two rest positions are
+// `throwAngle` either side of it.
+ToggleSwitch.tilt = function
 	if self.bar == null then return self.startTilt
 	return self.bar.angle - self.spec.angle
 end function
@@ -269,35 +325,37 @@ end function
 // Bodies
 //----------------------------------------------------------------------
 
-BladeSwitch.makeBodies = function
+ToggleSwitch.makeBodies = function
 	s = self.spec
 	pv = self.pivotLocal
+	// The paddle's origin is the pivot at its foot, so the box it carries
+	// sits half a length out along the bar.
 	self.bar = self.addBody(pv[0], pv[1])
-	sh = self.bar.addBox(s.length, s.thickness, -pv[0], 0, 0, s.density)
+	sh = self.bar.addBox(s.length, s.thickness, s.length / 2, 0, 0, s.density)
 	sh.setRestitution s.restitution
 	sh.setFriction s.friction
 	sh.setFilter config.catDefault, config.maskBar
 
-	// The base is centered on the footprint, which is not where the pivot is,
-	// so its shape is offset back along the bar.
+	// The housing hangs below the pivot, which sits `pivotDepth` under its
+	// top surface rather than at its middle.
 	self.fulcrum = self.addBody(pv[0], pv[1])
-	hw = self.fulcrumHalfWidth
-	h = s.fulcrumHeight + s.thickness / 2
-	fsh = self.fulcrum.addBox(hw * 2, h, -pv[0], -h / 2, 0, 1)
+	fsh = self.fulcrum.addBox(self.fulcrumHalfWidth * 2, s.fulcrumHeight,
+	  0, self.baseOffset, 0, 1)
 	fsh.setRestitution s.restitution
 	fsh.setFriction s.friction
 	fsh.setFilter config.catFulcrum, config.maskFulcrum
 end function
 
 // A post at each end of the base, on the base's own body.
-BladeSwitch.terminalLocals = function
-	s = self.spec
+ToggleSwitch.terminalLocals = function
 	pv = self.pivotLocal
-	return [[pv[0], pv[1], 1], [pv[0] + s.length, pv[1], 1]]
+	x = self.size[0] / 2 - 6
+	y = pv[1] + self.baseOffset
+	return [[-x, y, 1], [x, y, 1]]
 end function
 
-// The blade starts wherever the design says, which is not the part's angle.
-BladeSwitch.placeBody = function(b)
+// The paddle starts wherever the design says, which is not the part's angle.
+ToggleSwitch.placeBody = function(b)
 	if self.bar != null and refEquals(b, self.bar) then
 		p = self.pivotWorld
 		b.setAngle self.spec.angle + self.startTilt
@@ -313,18 +371,20 @@ end function
 // The pin, and the detent that makes it a switch
 //----------------------------------------------------------------------
 
-// Lever's travel is symmetric about the authored angle; this one runs from
-// level to openAngle and no further either way.
-BladeSwitch.pinBar = function
+// Lever's travel is symmetric about the authored angle; this one is
+// symmetric about upright, which is a quarter turn from it.
+ToggleSwitch.pinBar = function
 	s = self.spec
 	b = self.bar
 	t = self.tilt
+	lo = pi / 2 - s.throwAngle
+	hi = pi / 2 + s.throwAngle
 	stop = 0
-	if t < 0 then
-		b.setAngle s.angle
+	if t < lo then
+		b.setAngle s.angle + lo
 		stop = -1
-	else if t > s.openAngle then
-		b.setAngle s.angle + s.openAngle
+	else if t > hi then
+		b.setAngle s.angle + hi
 		stop = 1
 	end if
 	p = self.pivotWorld
@@ -332,36 +392,36 @@ BladeSwitch.pinBar = function
 	return stop
 end function
 
-// Toward whichever end of the travel the blade is nearer, and hard enough to
-// beat its own weight there.  See the header.
-BladeSwitch.detentTorque = function
+// Away from upright, toward whichever side the paddle is already on, and
+// hard enough to beat its own weight there.  See the header.
+ToggleSwitch.detentTorque = function
 	s = self.spec
 	dir = -1
-	if self.tilt > s.openAngle / 2 then dir = 1
+	if self.tilt > pi / 2 then dir = 1
 	return dir * s.detent * self.bar.mass * config.gravity * s.length / 2
 end function
 
-BladeSwitch.update = function(dt)
+ToggleSwitch.update = function(dt)
 	stop = self.pinBar
 	spin = (self.momentum + self.detentTorque * dt) / self.generalizedMass
 	// Sitting against a stop: it may leave, but it may not lean harder.
 	if spin * stop > 0 then spin = 0
 	self.applySpin spin
-	// Closed means home in the jaw, which is the stop at the bottom.
-	self.setClosed self.tilt < closeTilt
+	// Over center is over: the detent will carry it the rest of the way.
+	self.setClosed self.tilt < pi / 2
 end function
 
-BladeSwitch.setClosed = function(v)
+ToggleSwitch.setClosed = function(v)
 	if v == self.closed then return
 	self.closed = v
 	if self.world != null then self.world.circuitDirty = true
 end function
 
-BladeSwitch.conducts = function(i, j)
+ToggleSwitch.conducts = function(i, j)
 	return self.closed
 end function
 
-BladeSwitch.onStop = function
+ToggleSwitch.onStop = function
 	super.onStop
 	self.closed = self.startClosed
 end function
@@ -370,100 +430,116 @@ end function
 // Appearance
 //----------------------------------------------------------------------
 
-BladeSwitch.barImageKey = function
+ToggleSwitch.barImageKey = function
 	s = self.spec
-	return "blade:" + s.length + "x" + s.thickness + ":" + s.color
+	return "paddle:" + s.length + "x" + s.thickness + ":" + s.color + ":" +
+	  s.gripColor
 end function
 
-BladeSwitch.drawBar = function
+// The paddle lies along +x with its pivot at x = 0, which is how the bar of
+// a Lever is drawn; standing it up is the body's angle, not the picture's.
+// It tapers, because a plain stick at this size reads as a lever arm and the
+// thing that says "toggle" is a broad thumb end on a narrow neck.
+ToggleSwitch.drawBar = function
 	s = self.spec
 	w = s.length; h = s.thickness
 	g = artUtil.canvas(w, h)
-	g.fillRect 0, 0, w, h, s.color
-	g.fillRect 0, h - 2, w, 2, "#FFFFFF60"
-	g.fillRect 0, 0, w, 2, "#00000030"
-	g.drawRect 0, 0, w, h, "#00000070", 1
-	// The handle, at the end you throw it by, and the hinge bolt at the other.
-	artUtil.fillCircle g, w - 4, h / 2, h * 0.8, "#D8442C"
-	artUtil.drawCircle g, w - 4, h / 2, h * 0.8, "#00000070", 1
-	artUtil.fillCircle g, 4, h / 2, h * 0.35, "#404850"
+	neck = h * 0.3
+	quad = [[1, h / 2 - neck], [w - 1, 1], [w - 1, h - 1], [1, h / 2 + neck]]
+	g.fillPoly quad, s.color
+	g.drawPoly quad, "#00000070", 1
+	// The thumb end, in the one loud color on the part, so that which way it
+	// is leaning is readable at a glance across the board.
+	g.fillRect w - 8, 2, 6, h - 4, s.gripColor
+	g.drawRect w - 8, 2, 6, h - 4, "#00000060", 1
+	// The hinge bolt, at the foot.
+	artUtil.fillCircle g, 3, h / 2, 2, "#404850"
 	return g.getImage
 end function
 
-BladeSwitch.fulcrumImageKey = function
+ToggleSwitch.fulcrumImageKey = function
 	s = self.spec
-	return "bladeBase:" + self.fulcrumHalfWidth + "x" + s.fulcrumHeight +
-	  ":" + s.thickness + ":" + s.fulcrumColor
+	return "toggleBase:" + self.fulcrumHalfWidth + "x" + s.fulcrumHeight +
+	  ":" + s.pivotDepth + ":" + s.thickness + ":" + s.fulcrumColor
 end function
 
-BladeSwitch.drawFulcrum = function
+ToggleSwitch.drawFulcrum = function
 	s = self.spec
 	w = self.fulcrumHalfWidth * 2
-	h = s.fulcrumHeight + s.thickness / 2
+	h = s.fulcrumHeight
 	g = artUtil.canvas(w, h)
 	artUtil.fillRoundRect g, 0, 0, w, h, 3, s.fulcrumColor
 	g.fillRect 2, h - 3, w - 4, 2, "#FFFFFF20"
 	g.drawRect 0, 0, w, h, "#00000070", 1
-	// The two posts, at the ends of the blade's travel: the hinge on the left
-	// and the jaw the blade lands in on the right.  These are the terminals.
-	// The base picture is centered on the footprint, and so are the
-	// part-frame coordinates the terminals are given in.
+	// The slot the paddle comes up out of, wide enough to still be under it
+	// at full throw: the paddle crosses the top surface `pivotDepth` above
+	// the hinge, leaning, so it cuts the surface wider than it is thick.
+	slot = s.pivotDepth * tan(s.throwAngle) + s.thickness / 2 / cos(s.throwAngle)
+	g.fillRect w / 2 - slot - 1, h - 3, slot * 2 + 2, 3, "#00000060"
+	// The two posts.  The picture is centered on the housing, and the
+	// terminals are given in the part's frame, so they come back by the same
+	// offset that put the housing under the pivot.
+	cy = self.pivotLocal[1] + self.baseOffset
 	for t in self.terminalLocals
-		artUtil.fillCircle g, w / 2 + t[0], h - 2, 4, config.termPostColor
-		artUtil.drawCircle g, w / 2 + t[0], h - 2, 4, "#00000070", 1
+		artUtil.fillCircle g, w / 2 + t[0], h / 2 + t[1] - cy, 4,
+		  config.termPostColor
+		artUtil.drawCircle g, w / 2 + t[0], h / 2 + t[1] - cy, 4,
+		  "#00000070", 1
 	end for
 	return g.getImage
 end function
 
-BladeSwitch.imageKey = function
-	return "bladeSwitch:" + self.barImageKey + "/" + self.fulcrumImageKey
+ToggleSwitch.imageKey = function
+	return "toggleSwitch:" + self.barImageKey + "/" + self.fulcrumImageKey
 end function
 
-// Both sprites are pinned at the pivot, which is not the middle of either
-// picture, so each is placed from its own center's offset in the body frame.
-BladeSwitch.syncSprites = function
+// Neither picture is centered on the body's origin -- both bodies are pinned
+// at the pivot -- so each is placed by hand from its own center's offset in
+// that frame.
+ToggleSwitch.syncSprites = function
 	if not self.bodies then return
 	s = self.spec
-	pv = self.pivotLocal
 	o = self.bar.position
 	a = self.bar.angle
-	self.barSprite.x = o[0] - pv[0] * cos(a)
-	self.barSprite.y = o[1] - pv[0] * sin(a)
+	self.barSprite.x = o[0] + s.length / 2 * cos(a)
+	self.barSprite.y = o[1] + s.length / 2 * sin(a)
 	self.barSprite.rotation = a * 180 / pi
 
-	// The base's picture is centered on the footprint, half its height below
-	// the line the blade lies along.
 	o = self.fulcrum.position
 	a = self.fulcrum.angle
-	h = (s.fulcrumHeight + s.thickness / 2) / 2
-	dx = -pv[0]; dy = -h
-	self.fulcrumSprite.x = o[0] + dx * cos(a) - dy * sin(a)
-	self.fulcrumSprite.y = o[1] + dx * sin(a) + dy * cos(a)
+	d = self.baseOffset
+	self.fulcrumSprite.x = o[0] - d * sin(a)
+	self.fulcrumSprite.y = o[1] + d * cos(a)
 	self.fulcrumSprite.rotation = a * 180 / pi
 end function
 
 // The palette icon: the whole thing at rest, laid out as the sprites sit.
-BladeSwitch.drawAssembly = function(g)
+ToggleSwitch.drawAssembly = function(g)
 	s = self.spec
 	sz = self.size
 	pv = self.pivotLocal
 	px = sz[0] / 2 + pv[0]
 	py = sz[1] / 2 + pv[1]
 	f = self.fulcrumImage
-	g.drawImage f, px - pv[0] - f.width / 2, py - f.height
-	// The blade is drawn at the angle it starts at, so the icon says which
-	// way round the switch comes -- and drawn by hand rather than blitted,
-	// because PixelDisplay.drawImage cannot rotate.
-	t = self.spec.angle + self.startTilt
+	g.drawImage f, px - f.width / 2, py + self.baseOffset - f.height / 2
+	// The paddle is drawn at the angle it starts at, so the icon says which
+	// way the switch comes -- and drawn by hand rather than blitted, because
+	// PixelDisplay.drawImage cannot rotate.
+	t = s.angle + self.startTilt
 	c = cos(t); sn = sin(t)
+	neck = s.thickness * 0.3
 	hw = s.thickness / 2
 	quad = []
-	for uv in [[0, -hw], [s.length, -hw], [s.length, hw], [0, hw]]
+	for uv in [[0, -neck], [s.length, -hw], [s.length, hw], [0, neck]]
 		quad.push [px + uv[0] * c - uv[1] * sn, py + uv[0] * sn + uv[1] * c]
 	end for
 	g.fillPoly quad, s.color
 	g.drawPoly quad, "#00000070", 1
-	grip = [px + (s.length - 4) * c, py + (s.length - 4) * sn]
-	artUtil.fillCircle g, grip[0], grip[1], s.thickness * 0.8, "#D8442C"
-	artUtil.drawCircle g, grip[0], grip[1], s.thickness * 0.8, "#00000070", 1
+	grip = []
+	for uv in [[s.length - 7, -hw + 1], [s.length - 1, -hw + 1],
+	  [s.length - 1, hw - 1], [s.length - 7, hw - 1]]
+		grip.push [px + uv[0] * c - uv[1] * sn, py + uv[0] * sn + uv[1] * c]
+	end for
+	g.fillPoly grip, s.gripColor
+	g.drawPoly grip, "#00000060", 1
 end function

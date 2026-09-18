@@ -37,6 +37,10 @@ Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e.linkPts = []                 // [part, tieIndex] chosen so far
 	e.hotTie = null                // the tie point (or wheel) under the mouse
 	e.linkDragging = false         // still holding the end we pulled out
+	e.pressTime = 0                // when and where the button last went down,
+	e.pressX = 0                   // for telling a click from a drag
+	e.pressY = 0
+	e.cycleCand = null             // part whose state a click would advance
 	return e
 end function
 
@@ -90,6 +94,10 @@ Editor.update = function(mode)
 		end if
 		self.dragTo mx, my
 		if not down then self.onMouseUp mx, my
+	else if self.wasDown and not down and mode == GameWorld.DESIGN then
+		// A part that cannot be dragged never enters DRAGGING, so the release
+		// that ends a click on one has to be noticed here instead.
+		self.tryCycle mx, my
 	end if
 	self.wasDown = down
 
@@ -101,6 +109,10 @@ Editor.update = function(mode)
 end function
 
 Editor.onMouseDown = function(mx, my)
+	self.pressTime = time
+	self.pressX = mx
+	self.pressY = my
+	self.cycleCand = null
 	// Buttons and the palette belong to the panel; it is checked first, so a
 	// click in the strip never falls through to the field.
 	if self.panel.contains(mx, my) then
@@ -113,6 +125,11 @@ Editor.onMouseDown = function(mx, my)
 	// Scenery -- the floor, the walls -- is not selectable, and clicking it
 	// means the same as clicking empty space.
 	if p != null and p.fixed then p = null
+	// Clicking a part that is already selected means something else: see
+	// tryCycle.  Noted before the selection moves, and acted on at the
+	// release, because until then this might yet turn into a drag.
+	if p != null and util.sameRef(p, self.selected) and
+	   p.stateSpecs.len > 1 then self.cycleCand = p
 	self.select p
 	if p != null and p.draggable then self.beginMove p, mx, my
 end function
@@ -142,6 +159,32 @@ Editor.onMouseUp = function(mx, my)
 	self.hotTie = null
 	self.dropOK = true      // sprites are untinted again; keep the flag in step
 	self.overlayDirty = true
+	self.tryCycle mx, my
+end function
+
+// A press that was short and did not wander: a click, as against a drag or a
+// long press.  The test is on the mouse rather than on whether the part
+// ended up somewhere new, because snapping means a part can be shoved most
+// of a grid cell and still land back where it started -- which is a drag the
+// user meant, and should not also flip a switch.
+Editor.wasQuickClick = function(mx, my)
+	if time - self.pressTime > config.clickTime then return false
+	return abs(mx - self.pressX) <= config.clickSlop and
+	  abs(my - self.pressY) <= config.clickSlop
+end function
+
+// The release that ends a click on an already selected part: advance its
+// authored starting state -- a switch to the other way up, a candle to lit.
+// The first click on a part only selects it, so that picking something up to
+// look at it never changes it.
+Editor.tryCycle = function(mx, my)
+	p = self.cycleCand
+	self.cycleCand = null
+	if p == null or not self.wasQuickClick(mx, my) then return
+	// Not if the click ended up throwing the part away, or moving the
+	// selection off it.
+	if not util.sameRef(p, self.selected) then return
+	if p.cycleState then self.overlayDirty = true
 end function
 
 Editor.handleKeys = function(mode)
@@ -270,8 +313,9 @@ Editor.returnSprites = function(p)
 	p.tintSprites
 	p.moveSpritesTo self.world.partDisp
 	// It lands at the end of the layer, which would put an ordinary part
-	// over a basket; the parts that draw in front go back on top.
-	self.world.raiseFrontParts
+	// over a basket, and a lamp's glow over everything; the layer is put
+	// back in order.
+	self.world.restackSprites
 end function
 
 //----------------------------------------------------------------------

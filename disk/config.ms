@@ -139,6 +139,11 @@ ropeColor = "#9A7248"
 ropeWidth = 3
 ropeArcSteps = 4            // segments drawn around a pulley's wrap
 
+// Telling a click from a drag or a long press, for the second click on an
+// already selected part -- which cycles its authored starting state.
+clickTime = 0.35            // seconds a click may last
+clickSlop = 4               // ...and px the mouse may wander in it
+
 // Tie points: where a rope may be fastened.
 tieSnap = 14                // px the mouse may be from one and still grab it
 mountSnap = 28              // ...and from one to mount a pulley on it
@@ -201,3 +206,54 @@ plugRadius = 5
 // The motor's case: the box the gearwheel turns on the front of.
 motorCaseColor = "#556270"
 motorVentColor = "#3A434E"
+
+// Light.  A lamp or a flame lays a pool of light on the board: one pre-drawn
+// radial gradient, laid over the parts as an ordinary sprite.  There is no
+// shadow and no occlusion -- the pool simply sits where the light is -- which
+// is all it has to do while nothing in the game asks what light *reaches*.
+// See glow.ms.
+//
+// Whether the pool lies over the other parts or behind them.  Behind is the
+// truer of the two -- light falls on the board, and a block in front of the
+// lamp is lit on its own face, not washed out -- but in front is warmer, and
+// which one looks better is a matter of taste.  See GameWorld.restackSprites.
+glowInFront = false
+
+// The lamp: a steady, wide, cool-white pool.
+lampGlowColor = "#FFE8B0"
+lampGlowAlpha = 0.5
+lampGlowScale = 1           // 1 is the picture's own 234px across
+
+// The candle: smaller, warmer, dimmer, and never quite still.  `flicker` is
+// how far the pool swings either side of its size, in both its reach and its
+// brightness at once; much past a fifth and it reads as a fault rather than a
+// flame.
+candleGlowColor = "#FFD088"
+candleGlowAlpha = 0.4
+candleGlowScale = 0.5
+candleGlowFlicker = 0.12
+
+// The candle's flame: the first particle effect, and the one every fire in
+// the game will be built from.  The particle is the same radial gradient the
+// pool of light is, shrunk right down -- a soft blob, which is what a flame
+// is made of at this size -- so the scales below are fractions of 234px:
+// 0.035 is about 8 pixels across.
+//
+// A flame is not a spray of debris.  It rises *faster* as it goes, because
+// the gas is buoyant, and it narrows, because the hot column draws air in
+// behind it: `flameRise` is the first and `flameTaper` the second.  See
+// Flame in particles.ms.
+flameCount = 24             // sprites the effect costs, forever
+flameRate = 40              // born per second
+flameLife = 0.35            // seconds, plus or minus
+flameLifeVar = 0.08
+flameSpeed = 34             // px/sec upward at birth, plus or minus
+flameSpeedVar = 10
+flameSpread = 0.25          // radians either side of straight up
+flameWidth = 1.5            // px: how wide across the wick they are born
+flameRise = 70              // px/sec^2 of buoyancy
+flameTaper = 8              // how hard the column is pinched closed
+flameStartScale = 0.035     // about 8px across: a flame is taller than wide
+flameEndScale = 0.012
+flameHotColor = "#FFF0A0D0" // at the wick...
+flameCoolColor = "#FF400000" // ...and at the top, gone

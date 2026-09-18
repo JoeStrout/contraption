@@ -7,6 +7,9 @@
 //   drag from the palette   place a new part
 //   drag a placed part      move it (it turns red where it will not fit)
 //   click a part            select it
+//   click it again          for a part with more than one sensible way to
+//                           start -- a toggle switch -- flip to the next one
+//                           (a quick click; a press and hold still moves it)
 //   Backspace / Delete      delete the selected part
 //   mouse wheel over panel  scroll the palette
 //   drag Rope from palette  drop it on a tie point to make one end fast,
@@ -144,8 +147,9 @@ while not key.pressed("escape")
 	world.advance elapsed
 
 	// Ropes draw themselves, in every mode: a slack one hangs while you are
-	// still building.
+	// still building.  So do flames, for the same reason.
 	world.updateRopes elapsed
+	world.updateEffects elapsed
 	world.drawLinks ropeDisp
 
 	thePanel.trackMouse mouse.x, mouse.y, world.mode
