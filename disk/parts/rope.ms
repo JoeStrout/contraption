@@ -73,12 +73,15 @@ Rope.pts = null                     // per-instance: resolved [part, tieIndex]
 // A wire is this same line between terminals instead of tie points, and
 // these two are the whole of the difference; see parts/wire.ms.
 Rope.pointKey = "tie"
-// Two things the editor asks of a link's class while it is being run: whether
-// a wheel in the middle of the run is a place to carry on over, and whether
-// Return may cut it off in mid air.  A fuse says no to both -- it is stiff,
-// and stuck to the board, so it wants a fastening at each end.
+// Three things the editor asks of a link's class while it is being run:
+// whether a wheel in the middle of the run is a place to carry on over,
+// whether Return may cut it off in mid air, and whether a point of it may be
+// pinned to the board rather than to a part.  Only a stiff link can be
+// pinned to nothing -- a rope pinned to thin air would fall off it -- so
+// that last one is the fuse's alone.
 Rope.canRoute = true
 Rope.allowsLooseEnd = true
+Rope.allowsFreePoints = false
 Rope.jac = null                     // this step's rows: one per body pulled on
 Rope.mEff = 0
 Rope.tension = 0                    // kept between steps, to warm start

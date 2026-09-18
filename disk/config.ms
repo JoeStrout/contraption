@@ -264,6 +264,12 @@ flameCoolColor = "#FF400000" // ...and at the top, gone
 candleHeat = 1              // a flame will light a fuse...
 candleHeatRadius = 9
 candleLightHeat = 0.9       // ...and it takes about a flame to light a wick
+// ...and how fast the wick may be travelling before the flame is blown out.
+// Measured at the wick rather than at the body, so that a candle whirled
+// round on the end of a lever goes out although its middle has barely moved.
+// 350 px/s is about 3.5 m/s: a candle knocked off a shelf is out before it
+// lands, one merely shoved along a table is not.
+candleBlowOutSpeed = 350
 fuseHeat = 1                // a burning fuse is as hot as the flame that lit it
 fuseHeatRadius = 7
 fuseLightHeat = 0.5         // and a fuse is the easiest thing on the board to light
@@ -312,3 +318,140 @@ sparkStartScale = 0.03      // about 7px of blob, whose core is a bright point
 sparkEndScale = 0.008
 sparkHotColor = "#FFFFF0FF" // white hot, and opaque, or it will not be seen
 sparkCoolColor = "#FF500000"
+
+// Explosives: a firecracker, which lies on its side, and a stick of dynamite,
+// which stands up.  Both carry a short fuse of their own -- drawn art, walked
+// by a timer, not a Fuse part -- so that lighting one straight from a candle
+// still leaves you a moment to be somewhere else.  See parts/explosives.ms.
+//
+// A BLAST is one instant and three things: an impulse on everything within
+// reach, a patch of heat while the fireball lasts, and whatever it breaks.
+//
+// The impulse falls off with the square of how far in the target is, and is
+// applied at the point of each body *nearest* the blast rather than at its
+// middle -- which is what tips a post over instead of sliding it, and is the
+// same free torque a real blast gets.  It is stated here in kg*px/s, so that
+// a 1 kg part at ground zero leaves at that many pixels a second; the engine
+// wants it times pxPerMeter^2 (see Weight.density).
+//
+// What a blast BREAKS is the same two-constants arrangement heat uses: the
+// blast carries a `power` and every part carries the power it takes to break
+// it (Part.breakPower, zero for everything that cannot be broken at all).
+// Only dynamite has any power, which is what makes it the one thing in the
+// game that destroys a block or a platform.
+explosiveLightHeat = 0.5    // its cap is as easy to light as a fuse...
+explosiveFuseHeat = 1       // ...and burns as hot as one, so they chain
+explosiveFuseHeatRadius = 7
+explosionHeat = 1           // the fireball itself, while it lasts
+explosionHeatFrac = 0.5     // of the blast radius: the fire, not the pressure
+explosionFireTime = 0.2     // seconds it is hot for
+explosionLinger = 2.5       // seconds of smoke before the wreck is swept up
+explosionFlashTime = 0.18   // the white of the flash, fading and spreading
+explosionFlashGrowth = 1.6  // how much wider it is by the time it is gone
+
+firecrackerFuseTime = 1.2   // seconds from catching to going off
+firecrackerBlastRadius = 70
+firecrackerImpulse = 260    // kg*px/s at ground zero; see above
+firecrackerPower = 0        // it breaks nothing at all
+firecrackerBreakRadius = 0
+firecrackerSparks = 26      // particles in the pop...
+firecrackerSmoke = 0        // ...and no smoke to speak of
+firecrackerFlashAlpha = 0.7
+firecrackerFlashScale = 0.25
+firecrackerSound = "/sys/sounds/blam.wav"
+firecrackerVolume = 0.4
+
+dynamiteFuseTime = 1.8
+dynamiteBlastRadius = 190
+dynamiteImpulse = 900
+dynamitePower = 1           // enough for a block or a platform
+dynamiteBreakRadius = 55    // ...within this much of the stick
+dynamiteSparks = 48
+dynamiteSmoke = 24
+dynamiteFlashAlpha = 0.95
+dynamiteFlashScale = 0.85
+dynamiteSound = "/sys/sounds/airburst.wav"
+dynamiteVolume = 0.85
+
+// A ROCKET is an explosive that goes somewhere first.  Its fuse lights the
+// motor rather than the charge: it climbs for rocketFlightTime and then goes
+// off like a small stick of dynamite, wherever it has got to.
+//
+// Thrust is an acceleration, in px/sec^2, so that it reads against gravity
+// (980) directly: the difference is what the rocket actually climbs at, and
+// half that difference times the flight time squared is how high it gets.
+//
+// Until it is lit a rocket is PINNED -- it stands on the board and neither
+// falls over nor falls down -- and the pin is broken by being lit, or by any
+// blow hard enough to leave it moving faster than rocketFreeSpeed (or
+// spinning faster than rocketFreeSpin) after a step.  Those two have to sit
+// well above what one step of gravity alone adds, which is 980 * timestep.
+rocketFuseTime = 1.0        // seconds from catching to lift-off
+rocketFlightTime = 1.25     // ...and from lift-off to going off
+rocketThrust = 1600         // px/sec^2, against gravity's 980
+rocketFreeSpeed = 150       // px/sec of it after a step, and...
+rocketFreeSpin = 3          // ...radians/sec, either of which breaks the pin
+rocketBlastRadius = 150
+rocketImpulse = 700         // kg*px/s at ground zero; see above
+rocketPower = 1             // enough for a block or a platform, like dynamite
+rocketBreakRadius = 40      // ...but it has to be closer
+rocketSparks = 40
+rocketSmoke = 18
+rocketFlashAlpha = 0.9
+rocketFlashScale = 0.7
+rocketSound = "/sys/sounds/airburst.wav"
+rocketVolume = 0.7
+rocketLaunchSound = "/sys/sounds/swoosh.wav"
+rocketLaunchVolume = 0.6
+
+// The spray a blast throws: the fuse's sparks, harder and shorter-lived,
+// since a blast is over at once where a sparkler goes on and on.
+blastSparkLife = 0.55
+blastSparkLifeVar = 0.25
+blastSparkSpeed = 300
+blastSparkSpeedVar = 170
+blastSparkGravity = -300
+blastSparkDrag = 2.2
+blastSparkStartScale = 0.045
+blastSparkEndScale = 0.01
+
+// ...and the smoke, which is the same soft blob as everything else here, big
+// and gray and slow.  It is thrown out in every direction like the sparks and
+// then *rises*, because what is left after a blast is hot air.
+smokeLife = 1.8
+smokeLifeVar = 0.5
+smokeSpeed = 70
+smokeSpeedVar = 40
+smokeDrag = 3
+smokeRise = 30              // px/sec^2 of buoyancy
+smokeStartScale = 0.07
+smokeEndScale = 0.34
+smokeStartColor = "#585048C0"
+smokeEndColor = "#8A857E00"
+
+// The trickle of sparks off an explosive's own fuse while it burns down: the
+// warning that something is about to happen, and much quieter than the fuse
+// part's sparkler, since this one is a few pixels long.
+capSparkCount = 16
+capSparkRate = 40
+capSparkLife = 0.35
+capSparkSpeed = 90
+capSparkSpeedVar = 50
+capSparkStartScale = 0.022
+capSparkEndScale = 0.006
+
+// The rocket's exhaust: the same bright blob as a spark, thrown hard out of
+// the nozzle and left behind in world coordinates, which is what draws the
+// trail.  It is not given any gravity -- it is burning gas, and it is gone
+// long before gravity would have made a difference to it.
+rocketExhaustCount = 40
+rocketExhaustRate = 70
+rocketExhaustLife = 0.4
+rocketExhaustLifeVar = 0.15
+rocketExhaustSpeed = 180
+rocketExhaustSpeedVar = 80
+rocketExhaustSpread = 0.35  // radians either side of straight out the tail
+rocketExhaustDrag = 3
+rocketExhaustStartScale = 0.05
+rocketExhaustEndScale = 0.012
+rocketExhaustHeatRadius = 12  // the flame out the back, which lights fuses

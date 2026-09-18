@@ -16,6 +16,12 @@
 //                           then click another to finish the run (a click
 //                           on a pulley's wheel routes the rope over it;
 //                           Return ends it loose, as if it had been cut)
+//   drag Fuse from palette  the same, between tie points -- but a fuse is
+//                           stiff, so shift-click pins it to the board where
+//                           the mouse is and carries the run on from there,
+//                           and Return ends it at a pin rather than loose.
+//                           A fuse may therefore go anywhere, not only from
+//                           one part to another.
 //   drag Wire from palette  the same, between the square terminals: an
 //                           outlet's sockets, a motor's post, a relay's four
 //                           pads.  A live wire goes bright, and a powered

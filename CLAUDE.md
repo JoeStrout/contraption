@@ -61,9 +61,10 @@ disk/            mounted as /usr; the game
   particles.ms     the particle system, and the Flame built on it
   parts/           one module per type: balls, block, platform, lever,
                    balance, weight, balloon, basket, scissors, gears,
-                   belts, tiePoint, pulleys, rope, candle, fuse; and the
-                   electrical ones -- electric (the outlet), switches,
-                   relay, motor, wire, lamp
+                   belts, tiePoint, pulleys, rope, candle, fuse,
+                   explosives (firecracker, dynamite, rocket); and the
+                   electrical ones -- electric (the
+                   outlet), switches, relay, motor, wire, lamp
   parts/rope.ms    the Rope part: its constraint, its beads, its drawing,
                    and how it comes apart when something cuts it
   torque.ms        gear trains: which wheels turn together, and how fast
@@ -71,9 +72,12 @@ disk/            mounted as /usr; the game
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
   artUtil.ms       procedurally drawn art, and its cache
-  util.ms          identity-based list operations
+  util.ms          identity-based list operations, and small geometry:
+                   unit vectors, point-to-segment, polyline measuring/trimming
   pics/            pre-rendered art: the ball sprite sheets, the balloon,
-                   the basket, and the scissors' eight poses
+                   the basket, the scissors' eight poses, the lamp, relay
+                   and candle in both states, the radial glow, and the
+                   firecracker, dynamite and rocket
   lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
 tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
 art-sources/     Blender sources for disk/pics (see balls/README.md), and
@@ -278,9 +282,13 @@ never collects and never asks** -- a fuse laid against a lit candle while the
 machine is being built has to sit there unburnt.
 
 A **fuse** (`parts/fuse.ms`) is a Rope with the pull taken out (like a wire)
-and the hang taken out as well: no bead chain, ever.  Its geometry is a
-polyline in world coordinates in `spec.shape`, taken from its fastenings every
-frame in design mode and frozen once play starts -- which is what "stiff" and
+and the hang taken out as well: no bead chain, ever.  Its points are of two
+kinds -- a tie point on a part, or a place on the board pinned there with a
+shift-click in the editor.  Only a stiff link can have the second kind, since
+a rope fastened to thin air would fall off it, so `Rope.allowsFreePoints` is
+the fuse's alone; it is what lets a run turn a corner in mid air.  Its
+geometry is a polyline in world coordinates in `spec.shape`, taken from its
+points every frame in design mode and frozen once play starts -- which is what "stiff" and
 "pinned to the board" amount to, and is also what lets half a burnt fuse stay
 hanging in the air exactly where the whole one was.  Burning is two numbers,
 how much has gone from each end; catching is a walk along what is left,
@@ -289,7 +297,73 @@ else the fuse comes apart into two fuses, each alight at the new end.  The
 front is itself a heat source, which is the whole of how a fuse lights the
 next thing -- nothing in `fuse.ms` knows what a candle is.
 
+### Explosions
+
+A **firecracker**, a stick of **dynamite** and a **rocket**
+(`parts/explosives.ms`) are one class with three sets of numbers.  Each carries its own short fuse, which is
+*drawn art walked by a timer*, not a `Fuse`: a Fuse is a line pinned to the
+board between two fastenings, while this is a pigtail that has to ride around
+with whatever it is stuck in.  That fuse is the whole reason an explosive is a
+puzzle piece -- lighting one still leaves a second or two before anything
+happens.  Its tip is the part's one tie point, which is also where it asks
+`heat.at` whether it has caught, so running a fuse to it works by
+construction; while it burns it is itself a heat source, so explosives chain.
+
+Both are pre-rendered pictures (`pics/`), and the picture is the authority the
+way the candle's is: the box the physics uses, the line the fuse burns along
+and where the blast comes from are all rects and points measured off the drawn
+pixels, gathered by `measure` into the one map a type answers `art` with.  So
+a type here is its picture plus its numbers, and re-exporting the art means
+changing pixel rects and nothing else.
+
+A blast is one instant.  Every body within reach takes an impulse falling off
+with the square of how far in it is, applied at the point of that body
+*nearest* the blast rather than at its middle -- which is where the pressure
+arrives, and is what tips a post over instead of sliding it.  Distance is to
+each shape's world AABB (`Shape.bounds`), so a blast beside the end of a long
+platform is near it.  What a blast **breaks** is heat's two-constants
+arrangement over again: the blast carries a `power` and a part carries
+`Part.breakPower`, the power it takes to break it (0 -- the default -- means
+indestructible, and nothing `fixed` is ever broken).  Only dynamite has any
+power, which is what makes it the one thing in the game that destroys a block
+or a platform.
+
+Afterwards the part does not vanish, because the smoke and sparks are its own
+sprites and would go with it.  It goes `spent`: its bodies leave the world,
+its picture is blanked, and it lingers until the smoke clears before asking to
+be removed.  Stop puts it back -- via the snapshot if the blast broke
+anything, and otherwise by rebuilding its own bodies in `onStop`.
+
+A **rocket** is the same class with somewhere to go first.  Its fuse ends in
+`launch` rather than `boom` (`Explosive.fuseEnd`): the motor burns for
+`rocketFlightTime`, thrusting along the rocket's own axis *at its center of
+mass*, so nothing the motor does can turn it and where it points is where it
+goes, and then it detonates wherever it has got to.  The exhaust is left
+behind in world coordinates -- that is the trail -- and is hot, so a rocket
+lights what it flies past.
+
+Until it is lit a rocket is **pinned** to the board: no joint, so it is the
+projected constraint `Lever` uses, the body staying DYNAMIC and being put
+back on its authored pose after every step.  That is also what makes the pin
+breakable, since whatever the step left in the velocity is exactly what the
+blow was worth -- past `config.rocketFreeSpeed` or `rocketFreeSpin` it is let
+go instead of put back.  A STATIC body would hold it as still and could tell
+us none of that, impulses being no-ops on one.  A pinned or flying rocket is
+also exempt from `Part.settle`: sitting on the pad with its velocity zeroed
+every step makes it *settled*, and a settled part has each step's thrust
+crushed to a fifth, which held the rocket to a couple of pixels a second
+forever.  It is aimed straight up only
+because the editor has no way to aim it yet; everything about it is written
+in the part's own frame, so an angle in the spec is all that will take.
+
+This is also the one place the game makes a **sound** (`/sys/sounds`, panned
+to where the blast was).
+
 ### Light, and things that are only for the look of them
+
+A lit candle is blown out by moving fast enough -- measured at the *wick*, so
+that one whirled round on the end of a lever goes out although its middle has
+barely moved.  That is runtime state, and Stop puts the design's flame back.
 
 A lamp or a candle lays a **glow** on the board: one sprite, one pre-drawn
 radial gradient, tinted and faded, and that is all of it (`glow.ms`).  There

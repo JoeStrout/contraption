@@ -5,8 +5,9 @@
 // `spec.lit`, a click in the editor flips it (see the note on states in
 // part.ms), and Stop puts it back to however the design says.  So a level can
 // start with the candle already going, or with it dark and a puzzle about how
-// to light it.  The runtime `lit` is a separate field, because one day
-// something will blow this out mid-run and that must not touch the design.
+// to light it.  The runtime `lit` is a separate field, because being lit and
+// being knocked out again both happen mid-run and neither may touch the
+// design.
 //
 // It burns with two effects, and they are different kinds of thing:
 //
@@ -19,10 +20,10 @@
 //
 // It is DYNAMIC and can be knocked over, with the weight in the metal foot
 // -- density 4 against the wax's 1 -- so that it rights itself from a nudge
-// and goes over properly from a shove.  Nothing yet puts it out when it
-// falls, which it should; that wants the flame to know which way is up, and
-// it already does (see Flame), so it is a matter of deciding what the rule
-// is rather than of machinery.
+// and goes over properly from a shove.  Moving fast enough puts it out: the
+// rule is the speed of the *wick*, not of the candle, so that one whirled
+// round on the end of a lever goes out although its middle has barely moved.
+// That is runtime state like any other, and Stop puts the design back.
 //----------------------------------------------------------------------
 
 import "importUtil"
@@ -106,15 +107,26 @@ Candle.heatSources = function
 	  config.candleHeat)]
 end function
 
-// ...and an unlit one catches from anything hot enough at that same place,
-// which is what the far end of a fuse is by the time it gets there.  This is
-// runtime state and never touches spec: Stop puts the candle back to however
-// the design left it.
+// A lit candle is blown out by its own passage through the air, and an unlit
+// one catches from anything hot enough at the wick -- which is what the far
+// end of a fuse is by the time it gets there.  Both are runtime state and
+// neither touches spec: Stop puts the candle back to however the design left
+// it.
 Candle.update = function(dt)
 	super.update dt
-	if self.lit or self.world == null then return
+	if self.world == null then return
 	w = self.wickWorld
 	if w == null then return
+	if self.lit then
+		// The wick's speed rather than the body's, so that spin counts: it is
+		// the air going past the flame that puts it out, and the flame is out
+		// on the end of whatever the candle is riding.
+		v = self.bodies[0].velocityAt(w[0], w[1])
+		if v[0] * v[0] + v[1] * v[1] > config.candleBlowOutSpeed ^ 2 then
+			self.setLit false
+		end if
+		return
+	end if
 	if heat.at(self.world, w[0], w[1]) >= config.candleLightHeat then
 		self.setLit true
 	end if

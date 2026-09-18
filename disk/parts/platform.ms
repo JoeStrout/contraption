@@ -7,6 +7,8 @@ globals.Platform = new Part
 Platform.typeName = "platform"
 Platform.displayName = "Platform"
 Platform.bodyType = physics.STATIC
+Platform.breakPower = 1             // breakable -- but the level floor is fixed, and
+                                    // a blast spares anything fixed
 Platform.defaultSpec = Part.defaultSpec + {"width": 120, "height": 20,
   "color": "#7A8894", "restitution": 0.2, "friction": 0.7}
 

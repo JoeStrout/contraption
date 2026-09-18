@@ -28,6 +28,13 @@
 // which is what a real one does, and is the reason the burn is two numbers
 // on a frozen polyline rather than one part creeping along.
 //
+// ITS POINTS are of two kinds.  One is a tie point on a part, as a rope's
+// are.  The other is a place on the board, pinned there in the editor with a
+// shift-click, which only a stiff link can have: a rope fastened to thin air
+// would simply fall off it, while a fuse pinned there stays.  That is what
+// lets a run turn a corner in mid air and go wherever the puzzle needs it,
+// rather than only from part to part.
+//
 // The front is itself a heat source, which is the whole of how a fuse lights
 // the next thing: nothing here knows what a candle is.
 //
@@ -44,8 +51,9 @@ glowImg = file.loadImage("/usr/pics/light-glow.png")
 globals.Fuse = new Rope
 Fuse.typeName = "fuse"
 Fuse.displayName = "Fuse"
-Fuse.canRoute = false               // it cannot bend round a pulley...
-Fuse.allowsLooseEnd = false         // ...and it wants a fastening at each end
+Fuse.canRoute = false               // it cannot bend round a pulley
+Fuse.allowsLooseEnd = true
+Fuse.allowsFreePoints = true        // ...but it may be pinned to the board
 Fuse.defaultSpec = Rope.defaultSpec + {"shape": null,
   "color": config.fuseColor}
 
@@ -76,90 +84,54 @@ Fuse.build = function(world)
 end function
 
 //----------------------------------------------------------------------
-// Polyline arithmetic.  All of it is on plain lists of [x, y] and none of it
-// knows what a fuse is; if anything else ever wants it, it belongs in util.
+// Geometry
 //----------------------------------------------------------------------
 
-segLen = function(a, b)
-	return sqrt((b[0] - a[0]) ^ 2 + (b[1] - a[1]) ^ 2)
-end function
-
-polyLength = function(pts)
-	if pts == null or pts.len < 2 then return 0
-	total = 0
-	for i in range(1, pts.len - 1, 1)
-		total = total + segLen(pts[i-1], pts[i])
-	end for
-	return total
-end function
-
-lerpPt = function(a, b, f)
-	return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]
-end function
-
-// The piece of a polyline between two distances along it, or null if that is
-// nothing at all.
-trimPoly = function(pts, fromS, toS)
-	if pts == null or pts.len < 2 or toS <= fromS then return null
+// A point is {part, tie} or {x, y}; see the header.  This replaces the base
+// class's walk, which knows only the first kind.
+Fuse.path = function
 	out = []
-	s = 0
-	for i in range(1, pts.len - 1, 1)
-		a = pts[i-1]
-		b = pts[i]
-		d = segLen(a, b)
-		if d <= 0 then continue
-		s0 = s
-		s = s + d
-		lo = fromS
-		if lo < s0 then lo = s0
-		hi = toS
-		if hi > s then hi = s
-		if hi <= lo then continue
-		if not out then out.push lerpPt(a, b, (lo - s0) / d)
-		out.push lerpPt(a, b, (hi - s0) / d)
+	for p in self.spec.points
+		if p.hasIndex("part") then
+			part = self.world.partById(p.part)
+			if part == null then return null
+			w = part.tieWorld(p.tie)
+			if w == null then return null
+			out.push w
+		else
+			out.push [p.x, p.y]
+		end if
 	end for
 	if out.len < 2 then return null
 	return out
 end function
 
-// Where a given distance along a polyline falls.
-pointAt = function(pts, s)
-	if pts == null or not pts then return null
-	if s <= 0 then return [pts[0][0], pts[0][1]]
-	acc = 0
-	for i in range(1, pts.len - 1, 1)
-		d = segLen(pts[i-1], pts[i])
-		if d > 0 and acc + d >= s then
-			return lerpPt(pts[i-1], pts[i], (s - acc) / d)
-		end if
-		acc = acc + d
+// ...and a fuse is only deleted along with a part it is actually fastened to.
+Fuse.dependsOn = function(other)
+	for p in self.spec.points
+		if p.hasIndex("part") and p.part == other.id then return true
 	end for
-	last = pts[pts.len - 1]
-	return [last[0], last[1]]
+	return false
 end function
-
-//----------------------------------------------------------------------
-// Geometry
-//----------------------------------------------------------------------
 
 Fuse.shapePoints = function
 	return self.spec.shape
 end function
 
 Fuse.shapeLength = function
-	return polyLength(self.spec.shape)
+	return util.polyLength(self.spec.shape)
 end function
 
 // What has not burnt yet.
 Fuse.remaining = function
-	return trimPoly(self.spec.shape, self.eatenHead,
+	return util.trimPoly(self.spec.shape, self.eatenHead,
 	  self.shapeLength - self.eatenTail)
 end function
 
 // Where a burning front has got to.  `head` picks which one.
 Fuse.frontAt = function(head)
-	if head then return pointAt(self.spec.shape, self.eatenHead)
-	return pointAt(self.spec.shape, self.shapeLength - self.eatenTail)
+	if head then return util.pointAt(self.spec.shape, self.eatenHead)
+	return util.pointAt(self.spec.shape, self.shapeLength - self.eatenTail)
 end function
 
 // Design mode, every frame: take the line from the fastenings, so that the
@@ -178,7 +150,7 @@ Fuse.remeasure = function
 		shape.push [p[0], p[1]]
 	end for
 	self.spec.shape = shape
-	self.setLength polyLength(shape)
+	self.setLength util.polyLength(shape)
 end function
 
 Fuse.measure = function
@@ -203,7 +175,7 @@ Fuse.polyline = function
 	if pts == null or pts.len < 2 then return null
 	rest = []
 	for i in range(1, pts.len - 1, 1)
-		rest.push segLen(pts[i-1], pts[i])
+		rest.push util.segLen(pts[i-1], pts[i])
 	end for
 	return {"pts": pts, "pins": [0, pts.len - 1], "rest": rest}
 end function
@@ -253,11 +225,11 @@ Fuse.checkCatch = function
 	if w == null or not w.heat then return
 	pts = self.remaining
 	if pts == null or pts.len < 2 then return
-	L = polyLength(pts)
+	L = util.polyLength(pts)
 	step = config.fuseSampleStep
 	s = 0
 	while true
-		p = pointAt(pts, s)
+		p = util.pointAt(pts, s)
 		if heat.at(w, p[0], p[1]) >= config.fuseLightHeat then
 			// A catch that was swallowed as "this bit is already alight" is
 			// not the end of the walk: something else further along -- a
@@ -338,8 +310,8 @@ Fuse.splitAt = function(s, lightCut)
 	if w == null or w.partById(self.id) == null then return
 	pts = self.spec.shape
 	L = self.shapeLength
-	head = trimPoly(pts, self.eatenHead, s)
-	tail = trimPoly(pts, s, L - self.eatenTail)
+	head = util.trimPoly(pts, self.eatenHead, s)
+	tail = util.trimPoly(pts, s, L - self.eatenTail)
 	sp = self.spec.points
 	headTie = []
 	tailTie = []
@@ -368,7 +340,7 @@ makeFusePiece = function(w, shape, ties, col)
 	f = Fuse.make({"points": ties, "shape": shape, "freeEnd": true,
 	  "fixedLength": true, "color": col})
 	w.addPart f
-	f.setLength polyLength(shape)
+	f.setLength util.polyLength(shape)
 	return f
 end function
 
@@ -493,14 +465,14 @@ Fuse.draw = function(disp)
 	// The last inch before a front, glowing.  Drawn over the cord rather than
 	// instead of it, so the join never shows a gap.
 	if not (self.litHead or self.litTail) then return
-	L = polyLength(pts)
+	L = util.polyLength(pts)
 	e = config.fuseEmberLength
 	if e > L / 2 then e = L / 2
 	spans = []
 	if self.litHead then spans.push [0, e]
 	if self.litTail then spans.push [L - e, L]
 	for sp in spans
-		em = trimPoly(pts, sp[0], sp[1])
+		em = util.trimPoly(pts, sp[0], sp[1])
 		if em == null then continue
 		for i in range(0, em.len - 2, 1)
 			disp.line em[i][0], em[i][1], em[i+1][0], em[i+1][1],

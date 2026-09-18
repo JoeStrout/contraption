@@ -330,10 +330,51 @@ end function
 // which is all a block and tackle needs to be built.
 //----------------------------------------------------------------------
 
+Editor.shiftDown = function
+	return key.pressed("left shift") or key.pressed("right shift")
+end function
+
+// Shift pins the run to the board where the mouse is and carries on from
+// there, instead of looking for something to fasten to.  Only a stiff link
+// may be pinned to nothing at all -- see Rope.allowsFreePoints -- and for one
+// that may, shift wins even over a tie point under the mouse, so that the
+// gesture means the same thing wherever it is made.
+Editor.pinFreePoint = function(mx, my)
+	if self.linkKind != "rope" or not self.linkCls.allowsFreePoints then
+		return false
+	end if
+	if not self.shiftDown then return false
+	self.linkPts.push [null, mx, my]
+	self.overlayDirty = true
+	return true
+end function
+
+// Where a point picked for the run has got to: a tie point on a part, or a
+// place on the board that will stay where it was put.
+Editor.linkPtWorld = function(p)
+	if p[0] == null then return [p[1], p[2]]
+	return p[0].tieWorld(p[1])
+end function
+
+// The points picked so far, in the form a link's spec wants them.
+Editor.linkSpecPoints = function
+	pts = []
+	for p in self.linkPts
+		if p[0] == null then
+			pts.push {"x": p[1], "y": p[2]}
+		else
+			pts.push {"part": p[0].id, "tie": p[1]}
+		end if
+	end for
+	return pts
+end function
+
 // The end we dragged out of the palette, let go of.  On a tie point it
-// fastens there; anywhere else it is dropped, like any other bad placement.
+// fastens there; anywhere else it is dropped, like any other bad placement --
+// unless it was shift-dropped, which pins it to the board.
 Editor.onLinkDrop = function
 	self.linkDragging = false
+	if self.pinFreePoint(mouse.x, mouse.y) then return
 	if self.hotTie == null then
 		self.cancelLink
 		return
@@ -354,6 +395,7 @@ Editor.linkTarget = function(mx, my)
 end function
 
 Editor.onLinkClick = function(mx, my)
+	if self.pinFreePoint(mx, my) then return
 	tie = self.linkTarget(mx, my)
 	if tie == null then
 		self.cancelLink
@@ -393,11 +435,8 @@ Editor.onLinkClick = function(mx, my)
 end function
 
 Editor.finishRope = function
-	pts = []
-	for p in self.linkPts
-		pts.push {"part": p[0].id, "tie": p[1]}
-	end for
-	r = self.linkCls.make({"points": pts})
+	if self.linkPts.len < 2 then return
+	r = self.linkCls.make({"points": self.linkSpecPoints})
 	self.world.addPart r
 	// A rope is made exactly as long as the path it was drawn along, so it
 	// starts taut.  So is a fuse, which is stiff and stays that way.
@@ -437,11 +476,19 @@ Editor.finishBelt = function
 	self.endLink b
 end function
 
-// End the rope in mid air: tied at the points picked so far, and loose from
-// there out to the mouse.  The length that gives it is the length it keeps,
-// so it hangs from the moment it is made -- a rope that starts out cut.
+// End the run in mid air.  For a link that may be pinned to the board, that
+// is nothing special at all -- the last point is simply pinned where the
+// mouse is, and the thing is finished like any other.  For a rope it is: the
+// rope is tied at the points picked so far and loose from there out to the
+// mouse, and the length that gives it is the length it keeps, so it hangs
+// from the moment it is made -- a rope that starts out cut.
 Editor.finishLooseRope = function(mx, my)
 	if not self.linkPts then return
+	if self.linkCls.allowsFreePoints then
+		self.linkPts.push [null, mx, my]
+		self.finishRope
+		return
+	end if
 	pts = []
 	for p in self.linkPts
 		pts.push {"part": p[0].id, "tie": p[1]}
@@ -479,12 +526,20 @@ end function
 Editor.drawRopeGuides = function(d)
 	self.drawTiePoints d
 	to = [mouse.x, mouse.y]
-	if self.hotTie != null then to = [self.hotTie[2], self.hotTie[3]]
+	// Held down, shift means the next click lands where the mouse is and not
+	// on whatever it is near, so the band has to say so.
+	if self.hotTie != null and not (self.linkCls.allowsFreePoints and
+	   self.shiftDown) then to = [self.hotTie[2], self.hotTie[3]]
 	prev = null
 	for p in self.linkPts
-		w = p[0].tieWorld(p[1])
+		w = self.linkPtWorld(p)
 		if prev != null then
 			d.line prev[0], prev[1], w[0], w[1], config.tieHotColor, 2
+		end if
+		// A point pinned to the board has nothing of its own to show where it
+		// is, the way a tie point does, so it is marked here.
+		if p[0] == null then
+			artUtil.fillCircle d, w[0], w[1], config.tieRadius, config.tieHotColor
 		end if
 		prev = w
 	end for

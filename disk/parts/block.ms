@@ -5,6 +5,7 @@
 globals.Block = new Part
 Block.typeName = "block"
 Block.displayName = "Block"
+Block.breakPower = 1                // splinters, given enough of a blast
 Block.defaultSpec = Part.defaultSpec + {"width": 40, "height": 40,
   "color": "#B0793F", "restitution": 0.1, "density": 0.8, "friction": 0.6}
 

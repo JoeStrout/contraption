@@ -43,6 +43,10 @@ Part.ropeFixed = false              // a rope tied here is not pulled on by the
 Part.isWire = false                 // a wire is a rope that carries current
                                     // instead of tension; see parts/wire.ms
 Part.liveSource = false             // an outlet: its terminals are always live
+Part.breakPower = 0                 // what a blast has to be worth to destroy
+                                    // this part outright; 0 is indestructible.
+                                    // The mirror of heat's two constants --
+                                    // see config's explosives section.
 
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
