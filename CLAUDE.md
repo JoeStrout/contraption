@@ -306,6 +306,8 @@ which imports once, into globals.  `importUtil` itself is the one plain
   yields `[0, -1]` rather than nothing.  Always pass the explicit step:
   `range(0, n-1, 1)` correctly gives `[]`.
 - `PixelDisplay` has `line`, not `drawLine`.
+- **`locals`, `globals` and `outer` cannot be parameter names.**  The error is
+  `Expected parameter name`, which the syntax check above does not match.
 - **`fillEllipse` drops a wedge.**  It hands the job to raylib's
   `DrawEllipse`, a fan of 36 triangles with its seam at angle 0, and one
   triangle of it does not arrive -- so every filled circle has a ten-degree
@@ -318,8 +320,13 @@ which imports once, into globals.  `importUtil` itself is the one plain
 - `super` resolves from the class the running function was *defined* in, so a
   three-deep override chain (`Balance` -> `Lever` -> `Part`) works and does not
   recurse.
-- `fillRect` blends with GL_ONE/GL_ZERO (a straight replace), so filling with a
-  transparent color genuinely erases.  Prefer it over `clear` for per-frame
+- **`PixelDisplay` draws in replace mode** (GL_ONE/GL_ZERO) for everything but
+  text and `drawImage`, so alpha does not blend -- it overwrites.  Filling with
+  a transparent color therefore genuinely erases; and a translucent highlight
+  drawn straight onto a *shared* layer (the links or overlay display) punches a
+  hole through to the part below rather than shading it.  Inside a part's own
+  cached image it is fine, since that is composited with `drawImage`.  For an
+  opaque highlight there, see `artUtil.lighten` / `multiply`.  Prefer it over `clear` for per-frame
   erasing: `clear` reallocates the render texture when the size differs, and
   passing the wrong size silently resizes the display.
 

@@ -27,16 +27,22 @@ Taut ropes transfer force direction.  Loose ones are decorative.
 
 ## Electricity
 
-Electric objects have connection points for either a power cable (two conductors), or wires (single conductor).  Not sure yet how to make those distinct.
+A net is simply live or dead: no voltages, no currents, no component values.
+Every part has one terminal and the pegboard frame is the return path, so
+there is only one kind of connection and no cable/wire distinction to make.
+Parts that sit *in line* -- switches, relays, fuses -- have two.  A wire is a
+rope that never pulls, and hangs with 10% slack so it does not read as one.
+See `notes/electrical-parts.md` for the whole plan.
 
-- power outlet
-- battery
-- switch
-- resistor
-- capacitor (if we really want to get into R-C analog electronics!)
+- power outlet (the source; a wall socket, always live)
+- wire
+- switch (knife switch, pressure plate, pull chain)
+- relay -- the part that buys the depth: NOT, AND, OR and memory fall out of it
+- capacitor (a visible delay, not an R-C time constant)
 - light bulb
 - motor
 - fan
+- buzzer, electromagnet, solar panel, generator
 
 ## Wheels/Gears/Belts
 

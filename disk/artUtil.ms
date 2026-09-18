@@ -93,6 +93,24 @@ multiply = function(a, b)
 	return color.fromList(out)
 end function
 
+// Mix a color toward white: the counterpart to multiply, and the way to get
+// a highlight onto a *shared* display.  Every PixelDisplay call but text and
+// drawImage draws in replace mode, so a translucent color there does not
+// blend -- it overwrites, and whatever is on the layer below shows through
+// the hole.  Inside a part's own cached image that is harmless, since the
+// image is composited with drawImage afterwards; drawn straight onto the
+// links or overlay layer it is a bug, so highlights there are worked out
+// opaque in advance.
+lighten = function(c, f)
+	ca = color.toList(c)
+	out = []
+	for i in [0, 1, 2]
+		out.push floor(ca[i] + (255 - ca[i]) * f)
+	end for
+	out.push ca[3]
+	return color.fromList(out)
+end function
+
 // A circle as a polygon, for fill and outline both.
 //
 // PixelDisplay.fillEllipse hands the job straight to raylib's DrawEllipse,

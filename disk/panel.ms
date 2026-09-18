@@ -28,7 +28,7 @@ Panel.make = function(disp)
 	// appearance, so entries that look alike share the same Image.
 	p.icons = []
 	for entry in parts.catalog
-		p.icons.push parts.spawn(entry).image
+		p.icons.push parts.spawn(entry).paletteImage
 	end for
 	return p
 end function

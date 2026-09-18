@@ -95,6 +95,17 @@ maskBar = 65535 - catFulcrum - catPan
 maskFulcrum = 65535 - catPan
 maskPan = 65535 - catFulcrum
 
+// A motor is the other assembly whose own pieces must ignore each other: its
+// gearwheel turns on the face of the case behind it, and a gear meshing with
+// that gearwheel reaches over the case as well -- so the filter is every hub
+// against every case, not a motor's own.  The reasoning is the lever's: a
+// case never leaves its part's footprint, and what a hub may sit on top of is
+// already settled by the mesh distance rather than by the shapes.
+catCase = 8
+catHub = 16
+maskCase = 65535 - catHub
+maskHub = 65535 - catCase
+
 // How far a lever may tip, if its own geometry does not stop it sooner, and
 // how much steeper than that its fulcrum's sides are drawn, so that the bar
 // never looks like it is cutting into the apex.
@@ -162,3 +173,31 @@ beltWidth = 4
 beltArcSteps = 16           // segments drawn around a wheel's wrap
 wheelColor = "#9AA4B0"
 wheelRimColor = "#4A5460"
+
+// Electricity.  A net is live or dead and nothing else -- no voltages, no
+// currents, no component values -- so all of it is a flood fill over the
+// wires; see circuit.ms and notes/electrical-parts.md.
+//
+// A wire is a rope that never pulls, drawn this much longer than the run it
+// spans so that it visibly sags.  That is not decoration: a wire pulled
+// straight reads as a rope, and a wire that reads as a rope will be expected
+// to haul on what it is fastened to.
+wireSlack = 1.10
+wireColor = "#C05A18"       // orange, and brighter still when it is live
+wireLiveColor = "#FF9030"
+wireWidth = 3
+
+// Terminals, which are to a wire what tie points are to a rope.  Drawn square
+// where a tie point is round, so that the two are never mistaken.
+termSnap = 14
+termRadius = 4
+termColor = "#3A2E1CA0"
+termHotColor = "#FFC040"
+termPostColor = "#C8A038"
+// The head of a cord, drawn over whatever it is pushed into.  A part with a
+// socket rather than a post says how big its own is; see Part.plugRadius.
+plugRadius = 5
+
+// The motor's case: the box the gearwheel turns on the front of.
+motorCaseColor = "#556270"
+motorVentColor = "#3A434E"

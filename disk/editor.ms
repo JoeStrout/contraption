@@ -8,13 +8,13 @@
 // panel, so it does not slide underneath while crossing back over.
 
 import "importUtil"
-ensureImport ["config", "parts", "gameWorld", "panel", "rope", "util"]
+ensureImport ["config", "parts", "gameWorld", "panel", "rope", "wire", "util"]
 
 globals.Editor = {}
 
 Editor.IDLE = 0
 Editor.DRAGGING = 1
-Editor.LINKING = 2      // running a rope or a belt: picking what it joins
+Editor.LINKING = 2      // running a rope, belt or wire: picking its ends
 
 Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e = new Editor
@@ -33,7 +33,7 @@ Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e.dropOK = true
 	e.wasDown = false
 	e.overlayDirty = true
-	e.linkKind = "rope"            // ...or "belt"; see beginNewPart
+	e.linkKind = "rope"            // ...or "belt" or "wire"; see beginNewPart
 	e.linkPts = []                 // [part, tieIndex] chosen so far
 	e.hotTie = null                // the tie point (or wheel) under the mouse
 	e.linkDragging = false         // still holding the end we pulled out
@@ -157,12 +157,13 @@ Editor.handleKeys = function(mode)
 				continue
 			end if
 			// Return cuts the rope off where the mouse is, instead of
-			// fastening it to anything.  A belt has no loose end to cut.
+			// fastening it to anything.  Neither a belt nor a wire has a
+			// loose end worth authoring.
 			if k == char(3) or k == char(10) then
-				if self.linkKind == "belt" then
-					self.cancelLink
-				else
+				if self.linkKind == "rope" then
 					self.finishLooseRope mouse.x, mouse.y
+				else
+					self.cancelLink
 				end if
 				continue
 			end if
@@ -190,12 +191,14 @@ Editor.beginNewPart = function(entryIndex, mx, my)
 	entry = parts.catalog[entryIndex]
 	// A rope is not dragged into place: it is run from tie point to tie
 	// point, so picking it up starts that instead.  A belt is run the same
-	// way, from wheel to wheel.
+	// way from wheel to wheel, and a wire from terminal to terminal.
 	if entry.cls.isRope or entry.cls.isBelt then
 		self.select null
 		self.state = Editor.LINKING
 		self.linkKind = "rope"
 		if entry.cls.isBelt then self.linkKind = "belt"
+		// Checked after isRope, because a wire is a Rope: see parts/wire.ms.
+		if entry.cls.isWire then self.linkKind = "wire"
 		self.linkPts = []
 		self.linkDragging = true
 		self.overlayDirty = true
@@ -294,9 +297,13 @@ Editor.onLinkDrop = function
 end function
 
 // What the link being run could be fastened to at (x, y): a tie point for a
-// rope, a wheel for a belt.  Both come back as [part, index, x, y].
+// rope, a wheel for a belt, a terminal for a wire.  All three come back as
+// [part, index, x, y].
 Editor.linkTarget = function(mx, my)
 	if self.linkKind == "belt" then return self.world.hubAt(mx, my)
+	if self.linkKind == "wire" then
+		return self.world.terminalAt(mx, my, config.termSnap)
+	end if
 	return self.world.tieAt(mx, my, config.tieSnap)
 end function
 
@@ -312,6 +319,17 @@ Editor.onLinkClick = function(mx, my)
 	   self.linkPts[-1][1] == tie[1] then return
 	self.linkPts.push [tie[0], tie[1]]
 	self.overlayDirty = true
+	if self.linkKind == "wire" then
+		// Two terminals, and not two of the same part's: an outlet bridged to
+		// itself is the one wire that could never do anything.
+		if self.linkPts.len >= 2 and
+		   util.sameRef(self.linkPts[0][0], self.linkPts[1][0]) then
+			self.linkPts.pop
+			return
+		end if
+		if self.linkPts.len >= 2 then self.finishWire
+		return
+	end if
 	if self.linkKind == "belt" then
 		// A belt joins two hubs, not two grooves of one.
 		if self.linkPts.len >= 2 and
@@ -348,6 +366,19 @@ Editor.endLink = function(p)
 	self.linkDragging = false
 	self.select p
 	self.overlayDirty = true
+end function
+
+// A wire joins exactly two terminals, and is made a little longer than the
+// run between them so that it hangs: see parts/wire.ms.
+Editor.finishWire = function
+	pts = []
+	for p in self.linkPts
+		pts.push {"part": p[0].id, "term": p[1]}
+	end for
+	w = Wire.make({"points": pts})
+	self.world.addPart w
+	w.setLength w.measure * w.spec.slack
+	self.endLink w
 end function
 
 // A belt joins exactly two wheels, so there is nothing to decide once the
@@ -420,6 +451,33 @@ Editor.drawRopeGuides = function(d)
 	  config.ropeWidth
 end function
 
+// Every terminal in the world, with the one under the mouse picked out, and
+// the wire so far trailing from the one already chosen.  Terminals are drawn
+// square where tie points are round, so the two can never be confused.
+Editor.drawWireGuides = function(d)
+	for t in self.world.terminals
+		c = config.termColor
+		r = config.termRadius
+		if self.hotTie != null and util.sameRef(self.hotTie[0], t[0]) and
+		   self.hotTie[1] == t[1] then
+			c = config.termHotColor
+			r = r + 2
+		end if
+		d.drawRect t[2] - r, t[3] - r, r * 2, r * 2, c, 2
+	end for
+	to = [mouse.x, mouse.y]
+	if self.hotTie != null then to = [self.hotTie[2], self.hotTie[3]]
+	if self.linkPts then
+		w = self.linkPts[0][0].terminalWorld(self.linkPts[0][1])
+		d.line w[0], w[1], to[0], to[1], config.termHotColor, 2
+		return
+	end if
+	// Nothing fastened yet: a tail of wire in hand, as a dragged part would
+	// be.
+	d.line to[0], to[1], to[0] - 16, to[1] - 10, config.wireColor,
+	  config.wireWidth
+end function
+
 Editor.ringHot = function(p, i)
 	if self.hotTie != null and util.sameRef(self.hotTie[0], p) and
 	   self.hotTie[1] == i then return true
@@ -479,6 +537,8 @@ Editor.drawOverlay = function
 	if self.state == Editor.LINKING then
 		if self.linkKind == "belt" then
 			self.drawBeltGuides d
+		else if self.linkKind == "wire" then
+			self.drawWireGuides d
 		else
 			self.drawRopeGuides d
 		end if

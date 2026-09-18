@@ -40,6 +40,9 @@ Part.isBelt = false                 // belts are drawn and linked specially
 Part.ropeFixed = false              // a rope tied here is not pulled on by the
                                     // rope solver: the part answers for it
                                     // itself, as a spool does
+Part.isWire = false                 // a wire is a rope that carries current
+                                    // instead of tension; see parts/wire.ms
+Part.liveSource = false             // an outlet: its terminals are always live
 
 Part.spec = null                    // per-instance, see make
 Part.bodies = null
@@ -49,6 +52,8 @@ Part.world = null                   // the GameWorld we belong to
 Part.settleTime = 0                 // runtime: seconds spent barely moving
 Part.tethered = false               // runtime: a taut rope is holding us
 Part.ties = null                    // per-instance, resolved lazily; see tieList
+Part.terms = null                   // ...and the same for terminals
+Part.powered = false                // runtime: a live net reaches us
 Part.id = 0                         // stable identity, for parts that name others
 Part.nextId = 1                     // the next id to hand out
 
@@ -66,6 +71,8 @@ Part.make = function(spec=null)
 	p.sprites = []
 	p.settleTime = 0
 	p.ties = null
+	p.terms = null
+	p.powered = false
 	// Identity lives in spec, so that it survives a save and the references
 	// other parts hold -- a rope's tie points, a pulley's mount -- still mean
 	// the same parts when the design is loaded back.
@@ -123,14 +130,22 @@ Part.tieList = function
 end function
 
 Part.makeTies = function
-	self.ties = []
-	for t in self.tieLocals
+	self.ties = self.resolveLocals(self.tieLocals)
+end function
+
+// Turn a list of part-frame points into [body, lx, ly] in each body's own
+// frame.  Shared by tie points and terminals, which differ in what they are
+// for and not at all in how they are pinned to the part.
+Part.resolveLocals = function(pts)
+	out = []
+	for t in pts
 		bi = 0
 		if t.len > 2 then bi = t[2]
 		if bi >= self.bodies.len then continue
 		b = self.bodies[bi]
-		self.ties.push [b, t[0] - b.localX, t[1] - b.localY]
+		out.push [b, t[0] - b.localX, t[1] - b.localY]
 	end for
+	return out
 end function
 
 // Subclass hook: where a rope that ends at tie point i is drawn leaving this
@@ -165,14 +180,60 @@ end function
 
 // Where tie point i has got to in the world.
 Part.tieWorld = function(i)
-	tl = self.tieList
-	if i >= tl.len then return null
-	t = tl[i]
+	return self.pointWorld(self.tieList, i)
+end function
+
+// Where point i of a resolved list has got to in the world.
+Part.pointWorld = function(pts, i)
+	if i >= pts.len then return null
+	t = pts[i]
 	b = t[0]
 	o = b.position
 	a = b.angle
 	c = cos(a); sn = sin(a)
 	return [o[0] + t[1] * c - t[2] * sn, o[1] + t[1] * sn + t[2] * c]
+end function
+
+//----------------------------------------------------------------------
+// Terminals: where a wire may be connected.
+//
+// The same machinery as tie points, kept apart from them because they mean
+// different things and the editor must only ever offer one of them: a rope
+// is tied to tie points, a wire is run between terminals.
+//
+// Every part here has one terminal and grounds through the pegboard, which
+// is what lets a wire be a single conductor and a net be one bit.  Two
+// terminals are for parts that sit *in line* -- a switch, a fuse, a relay's
+// contacts -- and what such a part joins up inside itself is `conducts`.
+//----------------------------------------------------------------------
+
+// Subclass hook: the terminals, as [x, y] in the part's own frame, each
+// optionally followed by the index of the body that carries it.
+Part.terminalLocals = function
+	return []
+end function
+
+Part.terminalList = function
+	if self.terms == null then self.terms = self.resolveLocals(self.terminalLocals)
+	return self.terms
+end function
+
+Part.terminalWorld = function(i)
+	return self.pointWorld(self.terminalList, i)
+end function
+
+// Subclass hook: how big the head of a cord plugged in at terminal i is.
+// A bare post takes the default collar; a socket takes a plug that covers
+// it, which is the whole of how a socket shows it is occupied.
+Part.plugRadius = function(i)
+	return config.plugRadius
+end function
+
+// Subclass hook: does current pass between terminals i and j inside this
+// part?  Never, for a part with one terminal; for a switch, when it is
+// closed.  See circuit.ms.
+Part.conducts = function(i, j)
+	return false
 end function
 
 //----------------------------------------------------------------------
@@ -275,6 +336,14 @@ Part.image = function
 	return artUtil.cache[key]
 end function
 
+// Subclass hook: the one picture that stands for the whole part in the
+// palette.  It is the part's Image for anything drawn as a single sprite,
+// and something else for an assembly whose sprites move separately -- a
+// motor's Image is only the gearwheel, because that is the piece that turns.
+Part.paletteImage = function
+	return self.image
+end function
+
 // Subclass hook: create the part's sprites.  The default makes one sprite per
 // body, all showing self.image, which is what single-shape parts want.
 Part.makeSprites = function
@@ -333,6 +402,7 @@ end function
 Part.build = function(world)
 	self.world = world
 	self.ties = null
+	self.terms = null
 	self.makeBodies
 	self.makeSprites
 	self.syncSprites
@@ -345,6 +415,7 @@ Part.destroy = function
 	end for
 	self.bodies = []
 	self.ties = null
+	self.terms = null
 	if self.spriteDisp != null then
 		for sp in self.sprites
 			util.removeRef self.spriteDisp.sprites, sp
@@ -380,6 +451,7 @@ end function
 Part.onStop = function
 	self.settleTime = 0
 	self.tethered = false
+	self.powered = false
 	self.resetBounce
 	for b in self.bodies
 		b.setType physics.DYNAMIC

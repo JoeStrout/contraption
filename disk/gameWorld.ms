@@ -3,7 +3,8 @@
 // says whether it is moving at all.
 
 import "importUtil"
-ensureImport ["config", "physics", "part", "parts", "torque", "json", "util"]
+ensureImport ["config", "physics", "part", "parts", "torque", "circuit",
+  "json", "util"]
 
 // physicsCore is a native intrinsic where the host has one, and the
 // MiniScript fallback (reachable through the physics module) where it does
@@ -28,6 +29,7 @@ GameWorld.make = function(partDisp)
 	w.byId = {}             // part id -> part, for the references ropes hold
 	w.ropes = []            // the parts with a constraint to solve
 	w.belts = []            // ...and the ones that are only drawn
+	w.wires = []            // ...and the ones that carry current
 	w.mode = GameWorld.DESIGN
 	w.partDisp = partDisp
 	// Scratch matrices for the overlap query, reused so that dragging does
@@ -40,6 +42,7 @@ GameWorld.make = function(partDisp)
 	w.partsChanged = false
 	w.trains = []       // the gear trains, rebuilt whenever the design changes
 	w.torqueDirty = true
+	w.circuitDirty = true   // ...and the nets, likewise; see solveCircuit
 	return w
 end function
 
@@ -52,8 +55,10 @@ GameWorld.addPart = function(p)
 	self.byId[p.id] = p
 	if p.isRope then self.ropes.push p
 	if p.isBelt then self.belts.push p
+	if p.isWire then self.wires.push p
 	if self.mode != GameWorld.DESIGN then self.partsChanged = true
 	if p.turns or p.isBelt then self.torqueDirty = true
+	self.circuitDirty = true
 	p.build self
 	self.raiseFrontParts
 	return p
@@ -92,7 +97,9 @@ GameWorld.removePart = function(p)
 	self.byId.remove p.id
 	if p.isRope then util.removeRef self.ropes, p
 	if p.isBelt then util.removeRef self.belts, p
+	if p.isWire then util.removeRef self.wires, p
 	if p.turns or p.isBelt then self.torqueDirty = true
+	self.circuitDirty = true
 	if self.mode != GameWorld.DESIGN then self.partsChanged = true
 	for d in doomed
 		self.removePart d
@@ -234,6 +241,7 @@ GameWorld.play = function
 		self.snapshot = self.save
 		self.partsChanged = false
 		self.torqueDirty = true
+		self.circuitDirty = true
 		for p in self.parts
 			p.onPlay
 		end for
@@ -250,6 +258,7 @@ GameWorld.stop = function
 	self.mode = GameWorld.DESIGN
 	self.ropeCuts = []
 	self.torqueDirty = true
+	self.circuitDirty = true
 	for p in self.parts
 		p.onStop
 	end for
@@ -282,6 +291,9 @@ GameWorld.advance = function(elapsed)
 	self.leftover = self.leftover - steps * dt
 	if self.leftover > dt then self.leftover = dt
 	for i in range(1, steps, 1)
+		// Who is live, before anything reads it: a motor's drive torque is
+		// the first thing preStep and the train solver ask about.
+		self.solveCircuit
 		// Parts first: preStep is where they set up what the step about to
 		// run must see -- the restitution a bounce will use, the inertia a
 		// lever's pan presents to something landing on it.
@@ -300,6 +312,16 @@ GameWorld.advance = function(elapsed)
 	for p in self.parts
 		p.syncSprites
 	end for
+end function
+
+// Work out which parts a live net reaches.  Cached like the trains are, and
+// for the same reason: it only changes when the design does -- or, once
+// there are switches and relays, when one of them moves, which is what
+// setting circuitDirty from a part's own update will mean.  See circuit.ms.
+GameWorld.solveCircuit = function
+	if not self.circuitDirty then return
+	self.circuitDirty = false
+	circuit.solve self
 end function
 
 // Turn the gear trains through one step.  Each train is one degree of
@@ -451,6 +473,34 @@ GameWorld.hubAt = function(x, y)
 	end for
 	c = best.hubWorld
 	return [best, pick, c[0], c[1]]
+end function
+
+// Every terminal in the world, as [part, index, x, y] -- the same shape a
+// tie point comes back as, since running a wire is the same act as running a
+// rope.  The editor shows these while a wire is being run.
+GameWorld.terminals = function
+	out = []
+	for p in self.parts
+		tl = p.terminalList
+		for i in tl.indexes
+			w = p.terminalWorld(i)
+			if w != null then out.push [p, i, w[0], w[1]]
+		end for
+	end for
+	return out
+end function
+
+GameWorld.terminalAt = function(x, y, range)
+	best = null
+	bestD = range * range
+	for t in self.terminals
+		d = (t[2] - x) ^ 2 + (t[3] - y) ^ 2
+		if d <= bestD then
+			bestD = d
+			best = t
+		end if
+	end for
+	return best
 end function
 
 // The tie point nearest (x, y) within `range` px, or null.  `skip` leaves a

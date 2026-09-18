@@ -1,6 +1,7 @@
 //----------------------------------------------------------------------
-// Gear: a toothed wheel on a fixed axle, and Motor, the one that turns of
-// its own accord.
+// Gear: a toothed wheel on a fixed axle, and Spool, the one that can haul on
+// a rope.  Motor, which drives a train rather than being driven by it, is in
+// parts/motor.ms -- it is built on Gearwheel, which belts.ms defines.
 //
 // Gears connect by being next to each other.  There is nothing to wire up
 // and nothing to author: two of them mesh when their pitch circles touch,
@@ -96,6 +97,10 @@ Gear.makeBodies = function
 	sh = b.addCircle(self.bodyRadius, 0, 0, s.density)
 	sh.setRestitution s.restitution
 	sh.setFriction s.friction
+	// Hubs ignore motor cases: a gearwheel turns on the face of its own
+	// case, and a gear meshed with it reaches over that case too.  See the
+	// cat* constants in config.
+	sh.setFilter config.catHub, config.maskHub
 	// The axle carries the gear's weight, not the solver: letting gravity
 	// pull on it would only mean a contact impulse every step against
 	// whatever is resting on it, and the axle putting it back again.
@@ -249,85 +254,6 @@ Gear.drawGear = function(g, cx, cy)
 	artUtil.fillCircle g, cx, cy, rb, config.gearHubColor
 	artUtil.drawCircle g, cx, cy, rb, "#00000070", 1
 	artUtil.fillCircle g, cx, cy, 2.5, "#00000090"
-end function
-
-//----------------------------------------------------------------------
-// Motor: a gear with a constant torque of its own.
-//
-// Its torque falls off in a straight line with speed, from `torque` at a
-// standstill to nothing at `freeSpin` -- which is a real motor's curve, and
-// is also the only thing that gives this one a speed at all: gears weigh
-// almost nothing at our scale, so constant torque alone would take even a
-// weak motor to a blur in a step or two.
-//
-// What that curve buys is the behavior under load.  Hang more on it than its
-// torque can hold and it does not simply give up: it slows, which raises its
-// torque, until the two meet -- so it stalls under exactly its rated load,
-// creeps under a little more, and pays out faster the heavier the load gets,
-// bearing down harder all the way.  A winch with no brake, which is what it
-// is.
-//----------------------------------------------------------------------
-
-globals.Motor = new Gear
-Motor.typeName = "motor"
-Motor.displayName = "Motor"
-Motor.defaultSpec = Gear.defaultSpec + {"teeth": 12,
-  "color": config.gearMotorColor,
-  // Newton-meters.  What it means in play is the load it stalls at, which is
-  // this over the drum radius it is pulling on: 3 N-m on a spool's 10 cm drum
-  // is 30 N, so it walks away with a kilogram, labors at two, and is held by
-  // three.
-  "torque": 3,
-  "freeSpin": 3,      // radians/second with nothing to carry
-  "dir": 1,           // 1 turns counterclockwise, -1 clockwise
-  // It is driven, so it has no coasting to do, and damping here would only
-  // be a tax on the torque.
-  "angularDamping": 0}
-
-Motor.driveTorque = function(dt)
-	s = self.spec
-	return s.torque * s.dir * config.torqueUnit
-end function
-
-Motor.dragTorque = function(dt)
-	s = self.spec
-	if s.freeSpin <= 0 then return 0
-	return s.torque * config.torqueUnit / s.freeSpin
-end function
-
-Motor.imageKey = function
-	return super.imageKey + ":" + self.spec.dir
-end function
-
-// The gear, with the arrow that says which way it drives, drawn on the hub
-// so that it stays put while the teeth go round.
-Motor.makeImage = function
-	img = super.makeImage
-	g = artUtil.canvas(img.width, img.height)
-	g.drawImage img, 0, 0
-	self.drawArrow g, img.width / 2, img.height / 2
-	return g.getImage
-end function
-
-Motor.drawArrow = function(g, cx, cy)
-	r = self.pitchRadius * 0.42
-	d = self.spec.dir
-	c = config.gearArrowColor
-	// Three quarters of a turn, leaving room for the head.
-	prev = null
-	for i in range(0, 12, 1)
-		a = d * (i / 12 * 1.5 * pi - 0.4)
-		p = polar(cx, cy, r, a)
-		if prev != null then g.line prev[0], prev[1], p[0], p[1], c, 2
-		prev = p
-	end for
-	// The head, tangent to the arc at the end of it.
-	a = d * (1.5 * pi - 0.4)
-	tip = polar(cx, cy, r, a + d * 0.5)
-	back = r * 0.45
-	left = polar(cx, cy, r + back / 2, a)
-	right = polar(cx, cy, r - back / 2, a)
-	g.fillPoly [tip, left, right], c
 end function
 
 //----------------------------------------------------------------------

@@ -69,11 +69,16 @@ Rope.defaultSpec = Part.defaultSpec + {"points": null, "length": 0,
   "fixedLength": false, "freeEnd": false, "color": config.ropeColor}
 
 Rope.pts = null                     // per-instance: resolved [part, tieIndex]
+// Which sort of point this runs between, and how to find one in the world.
+// A wire is this same line between terminals instead of tie points, and
+// these two are the whole of the difference; see parts/wire.ms.
+Rope.pointKey = "tie"
 Rope.jac = null                     // this step's rows: one per body pulled on
 Rope.mEff = 0
 Rope.tension = 0                    // kept between steps, to warm start
 Rope.stretch = 0
 Rope.chain = null                   // the beads, while it hangs slack
+Rope.chainLen = 0                   // ...and the curLen they were laid for
 Rope.chainPrev = null
 Rope.pins = null                    // bead index of each tie point
 Rope.pinned = null                  // those same indexes, as a set
@@ -108,7 +113,7 @@ Rope.links = function
 	for p in self.spec.points
 		part = self.world.partById(p.part)
 		if part == null then return null
-		out.push [part, p.tie]
+		out.push [part, p[self.pointKey]]
 	end for
 	self.pts = out
 	return self.pts
@@ -126,11 +131,16 @@ Rope.path = function
 	end if
 	out = []
 	for p in pts
-		w = p[0].tieWorld(p[1])
+		w = self.endWorld(p[0], p[1])
 		if w == null then return null
 		out.push w
 	end for
 	return out
+end function
+
+// Where one of the points the rope is made fast to has got to.
+Rope.endWorld = function(part, i)
+	return part.tieWorld(i)
 end function
 
 Rope.pathLength = function(path)
@@ -373,6 +383,7 @@ end function
 // really decides it is friction at the pulleys, which we do not model).
 Rope.startChain = function(path)
 	self.chain = []
+	self.chainLen = self.curLen
 	self.chainPrev = []
 	self.pins = []
 	self.pinned = {}
@@ -582,9 +593,19 @@ end function
 // Drawing
 //----------------------------------------------------------------------
 
+// Subclass hook: what color to draw in, which for a wire says whether it is
+// carrying anything.
+Rope.drawColor = function
+	return self.spec.color
+end function
+
+Rope.drawWidth = function
+	return config.ropeWidth
+end function
+
 Rope.draw = function(disp)
-	c = self.spec.color
-	w = config.ropeWidth
+	c = self.drawColor
+	w = self.drawWidth
 	if self.chain != null then
 		ch = self.chain
 		for i in range(0, ch.len - 2, 1)
@@ -710,7 +731,7 @@ Rope.hitTest = function(x, y)
 	if pts == null then pts = self.path
 	if pts == null then return false
 	for i in range(0, pts.len - 2, 1)
-		if util.distToSegment(x, y, pts[i], pts[i+1]) < config.ropeWidth + 3 then
+		if util.distToSegment(x, y, pts[i], pts[i+1]) < self.drawWidth + 3 then
 			return true
 		end if
 	end for
