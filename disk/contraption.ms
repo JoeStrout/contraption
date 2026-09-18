@@ -14,8 +14,9 @@
 //                           on a pulley's wheel routes the rope over it;
 //                           Return ends it loose, as if it had been cut)
 //   drag Wire from palette  the same, between the square terminals: an
-//                           outlet's sockets, a motor's post.  A live wire
-//                           goes bright, and a powered motor turns.
+//                           outlet's sockets, a motor's post, a relay's four
+//                           pads.  A live wire goes bright, and a powered
+//                           motor turns.
 //   play / pause / stop     run, hold, and reset the simulation
 //   Esc                     quit
 

@@ -47,6 +47,7 @@ end function
 solve = function(world)
 	for p in world.parts
 		p.powered = false
+		p.liveTerms = []
 	end for
 
 	adj = {}
@@ -84,13 +85,15 @@ solve = function(world)
 		end for
 	end while
 
+	// Per terminal as well as per part: a relay's coil has to be told apart
+	// from its contacts, which are on the same part and on other nets
+	// entirely.  See Part.termLive.
 	for p in world.parts
 		n = p.terminalList.len
 		for i in range(0, n - 1, 1)
-			if live.hasIndex(nodeKey(p, i)) then
-				p.powered = true
-				break
-			end if
+			on = live.hasIndex(nodeKey(p, i))
+			p.liveTerms.push on
+			if on then p.powered = true
 		end for
 	end for
 	// A wire shows what it is carrying, which is the one piece of feedback

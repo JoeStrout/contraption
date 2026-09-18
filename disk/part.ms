@@ -54,6 +54,8 @@ Part.tethered = false               // runtime: a taut rope is holding us
 Part.ties = null                    // per-instance, resolved lazily; see tieList
 Part.terms = null                   // ...and the same for terminals
 Part.powered = false                // runtime: a live net reaches us
+Part.liveTerms = null               // runtime: per terminal, the same; see
+                                    // termLive
 Part.id = 0                         // stable identity, for parts that name others
 Part.nextId = 1                     // the next id to hand out
 
@@ -73,6 +75,7 @@ Part.make = function(spec=null)
 	p.ties = null
 	p.terms = null
 	p.powered = false
+	p.liveTerms = []
 	// Identity lives in spec, so that it survives a save and the references
 	// other parts hold -- a rope's tie points, a pulley's mount -- still mean
 	// the same parts when the design is loaded back.
@@ -227,6 +230,15 @@ end function
 // it, which is the whole of how a socket shows it is occupied.
 Part.plugRadius = function(i)
 	return config.plugRadius
+end function
+
+// Is terminal i, specifically, on a live net?  `powered` answers for the
+// whole part, which is all a load with one terminal needs; a part that has
+// to tell its terminals apart -- a relay, whose coil is live or not quite
+// independently of its contacts -- asks here.  Filled by circuit.solve.
+Part.termLive = function(i)
+	if self.liveTerms == null or i >= self.liveTerms.len then return false
+	return self.liveTerms[i]
 end function
 
 // Subclass hook: does current pass between terminals i and j inside this
@@ -452,6 +464,7 @@ Part.onStop = function
 	self.settleTime = 0
 	self.tethered = false
 	self.powered = false
+	self.liveTerms = []
 	self.resetBounce
 	for b in self.bodies
 		b.setType physics.DYNAMIC
