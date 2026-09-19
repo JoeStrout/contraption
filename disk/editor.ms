@@ -15,6 +15,7 @@ globals.Editor = {}
 Editor.IDLE = 0
 Editor.DRAGGING = 1
 Editor.LINKING = 2      // running a rope, belt or wire: picking its ends
+Editor.SHAPING = 3      // dragging the selected part's edit handle
 
 Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e = new Editor
@@ -42,6 +43,8 @@ Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e.pressX = 0                   // for telling a click from a drag
 	e.pressY = 0
 	e.cycleCand = null             // part whose state a click would advance
+	e.shapeFrom = null             // the spec a reshape started from, to go
+	                               // back to if it ends somewhere bad
 	return e
 end function
 
@@ -95,6 +98,9 @@ Editor.update = function(mode)
 		end if
 		self.dragTo mx, my
 		if not down then self.onMouseUp mx, my
+	else if self.state == Editor.SHAPING then
+		self.shapeTo mx, my
+		if not down then self.endShape
 	else if self.wasDown and not down and mode == GameWorld.DESIGN then
 		// A part that cannot be dragged never enters DRAGGING, so the release
 		// that ends a click on one has to be noticed here instead.
@@ -119,6 +125,13 @@ Editor.onMouseDown = function(mx, my)
 	if self.panel.contains(mx, my) then
 		entry = self.panel.entryAt(mx, my)
 		if entry != null then self.beginNewPart entry, mx, my
+		return
+	end if
+
+	// The selected part's handle wins over whatever is under it, since the
+	// handle sits on the box's edge and so half of it is over the part.
+	if self.onHandle(mx, my) then
+		self.beginShape mx, my
 		return
 	end if
 
@@ -194,7 +207,7 @@ Editor.handleKeys = function(mode)
 		if mode != GameWorld.DESIGN then continue
 		// Not mid-drag: the drag still holds a reference to the part, and
 		// would put a destroyed one back down on release.
-		if self.state == Editor.DRAGGING then continue
+		if self.state == Editor.DRAGGING or self.state == Editor.SHAPING then continue
 		if self.state == Editor.LINKING then
 			if k == char(27) then
 				self.cancelLink
@@ -318,6 +331,65 @@ Editor.returnSprites = function(p)
 	// over a basket, and a lamp's glow over everything; the layer is put
 	// back in order.
 	self.world.restackSprites
+end function
+
+//----------------------------------------------------------------------
+// Reshaping, by the selected part's edit handle (see Part.handleWorld)
+//
+// Unlike a drag, the part stays where it is among the others: only its shape
+// changes, and the part rebuilds itself to match as the handle moves.  A
+// shape that ends up overlapping something is put back, as a bad drop is.
+//----------------------------------------------------------------------
+
+Editor.onHandle = function(mx, my)
+	if self.selected == null then return false
+	h = self.selected.handleWorld
+	if h == null then return false
+	return abs(mx - h[0]) <= config.handleSnap and
+	  abs(my - h[1]) <= config.handleSnap
+end function
+
+Editor.beginShape = function(mx, my)
+	p = self.selected
+	h = p.handleWorld
+	// Measured from where the handle is, not the mouse, so that grabbing it
+	// a few pixels off center does not make it jump.
+	self.grabX = h[0] - mx
+	self.grabY = h[1] - my
+	self.shapeFrom = {} + p.spec
+	self.state = Editor.SHAPING
+	self.dropOK = true
+end function
+
+Editor.shapeTo = function(mx, my)
+	p = self.selected
+	if p.dragHandle(mx + self.grabX, my + self.grabY) then
+		self.overlayDirty = true
+	end if
+	ok = self.world.placementOK(p)
+	if ok != self.dropOK then
+		self.dropOK = ok
+		self.overlayDirty = true
+	end if
+	// Every frame, and not only when it changes: a reshape builds new
+	// sprites, which come untinted.
+	p.tintSprites self.dropWash
+end function
+
+Editor.endShape = function
+	p = self.selected
+	if not self.dropOK then
+		// Field by field into the map we have, as cycleState does.
+		for kv in self.shapeFrom
+			p.spec[kv.key] = kv.value
+		end for
+		p.reshape
+	end if
+	p.tintSprites
+	self.shapeFrom = null
+	self.state = Editor.IDLE
+	self.dropOK = true
+	self.overlayDirty = true
 end function
 
 //----------------------------------------------------------------------
@@ -629,8 +701,8 @@ Editor.select = function(p)
 	self.overlayDirty = true
 end function
 
-// The selection box, drawn around the part's design bounds.  There are no
-// edit handles yet; this is where they will go.
+// The selection box, drawn around the part's design bounds, with the part's
+// edit handle on it if it has one.
 Editor.drawOverlay = function
 	if not self.overlayDirty then return
 	self.overlayDirty = false
@@ -652,12 +724,18 @@ Editor.drawOverlay = function
 	p = self.selected
 	if p == null then return
 	b = p.designBounds
-	if self.state == Editor.DRAGGING and not self.dropOK then
+	if (self.state == Editor.DRAGGING or self.state == Editor.SHAPING) and
+	   not self.dropOK then
 		c = config.badColor
 	else
 		c = config.selectColor
 	end if
 	d.drawRect b[0] - 2, b[1] - 2, b[2] + 4, b[3] + 4, c, 2
+	h = p.handleWorld
+	if h == null then return
+	r = config.handleSize / 2
+	d.fillRect h[0] - r, h[1] - r, r * 2, r * 2, c
+	d.drawRect h[0] - r, h[1] - r, r * 2, r * 2, "#203040", 1
 end function
 
 // Design mode is over: drop any selection, so the box does not hang around

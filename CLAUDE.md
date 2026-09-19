@@ -34,17 +34,18 @@ drive it from a tool call.**  Ask the user to run it:
 2. mount the `disk` folder (it becomes `/usr`)
 3. `run "contraption"`
 
-What you *can* do is syntax-check, which catches a great deal:
+What you *can* do is syntax-check, with the same MiniScript 2 the game runs
+on, headless (no window opens, and it exits by itself):
 
 ```bash
-echo "" | miniscript disk/part.ms 2>&1 | grep -i "compiler error"
+../MiniMicro2/raylib-miniscript tools/syntaxCheck.ms
 ```
 
-`/usr/local/bin/miniscript` is the command-line MiniScript.  It has no `Matrix`
-intrinsic, so every module dies at the first physics call with `Undefined
-Identifier: 'Matrix'` — that is expected, and means parsing succeeded.  Only
-`Compiler Error` lines are real.  Imports do resolve, so the whole chain gets
-parsed.
+It compiles every `.ms` under `disk/` in a child interpreter without running
+it, prints each `Compiler Error` with its file and line, and exits 1 if there
+were any.  Run it after every change.
+Because a slow start could hang a tool call, run
+it with a kill after ~20 seconds rather than bare.
 
 There are no tests and no lint step.
 
@@ -80,6 +81,7 @@ disk/            mounted as /usr; the game
                    firecracker, dynamite and rocket
   lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
 tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
+tools/syntaxCheck.ms compiles everything on the disk; see above
 art-sources/     Blender sources for disk/pics (see balls/README.md), and
                  art-attribution.txt, whose CC-BY credits must reach the game
 notes/           design notes: the parts eventually wanted, by category
@@ -453,7 +455,7 @@ which imports once, into globals.  `importUtil` itself is the one plain
   `range(0, n-1, 1)` correctly gives `[]`.
 - `PixelDisplay` has `line`, not `drawLine`.
 - **`locals`, `globals` and `outer` cannot be parameter names.**  The error is
-  `Expected parameter name`, which the syntax check above does not match.
+  `Expected parameter name`, which the syntax check reports.
 - **`fillEllipse` drops a wedge.**  It hands the job to raylib's
   `DrawEllipse`, a fan of 36 triangles with its seam at angle 0, and one
   triangle of it does not arrive -- so every filled circle has a ten-degree

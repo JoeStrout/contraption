@@ -12,6 +12,11 @@ panelWidth = 200
 // floats; snapping happens only in the editor, on the way into spec.
 grid = 20
 
+// How far a platform's right end may be dragged from where the catalogue
+// put it, across (longer or shorter) and up or down (a ramp); see
+// parts/platform.ms.
+platformShapeLimit = 80
+
 // Height of the level floor, which is scenery rather than a placeable part.
 floorHeight = 40
 
@@ -69,6 +74,8 @@ titleColor = "#C8D4E0"
 labelColor = "#A0B0C0"
 selectColor = "#50D0FF"
 badColor = "#FF4040"
+handleSize = 8              // the square an edit handle is drawn as
+handleSnap = 8              // px the mouse may be from one and still grab it
 buttonColor = "#3C4C5C"
 buttonHiColor = "#5C7C9C"
 buttonIconColor = "#D8E4F0"

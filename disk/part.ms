@@ -348,6 +348,40 @@ Part.dependsOn = function(other)
 end function
 
 //----------------------------------------------------------------------
+// Edit handles
+//
+// A part whose shape can be changed in the editor -- not just moved --
+// offers a handle for it: a point the editor draws on the selection box and
+// lets the user drag.  What dragging it means is entirely the part's own
+// business; the editor only asks where the handle is and reports where the
+// mouse has taken it.  Like cycleState, this is authoring, so it writes to
+// spec.
+//----------------------------------------------------------------------
+
+// Subclass hook: where the handle is, in world coordinates, or null for a
+// part that has none.
+Part.handleWorld = function
+	return null
+end function
+
+// Subclass hook: the handle has been dragged to (x, y).  Change spec to
+// suit, rebuild to match (see reshape), and return whether anything changed.
+Part.dragHandle = function(x, y)
+	return false
+end function
+
+// Spec has changed in a way that changes the shapes themselves, which
+// placeBodies cannot follow: take the part out of the physics and build it
+// again.  Design mode only.
+Part.reshape = function
+	w = self.world
+	self.destroy
+	self.build w
+	w.restackSprites
+	w.syncDependents self
+end function
+
+//----------------------------------------------------------------------
 // Physics bodies
 //----------------------------------------------------------------------
 
