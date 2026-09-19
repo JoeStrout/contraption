@@ -164,9 +164,22 @@ Lamp.syncSprites = function
 	sp.y = b.y
 	sp.rotation = b.angle * 180 / pi
 	if self.glow == null then return
+	f = self.filamentWorld
+	self.glow.moveTo f[0], f[1]
+end function
+
+Lamp.filamentWorld = function
+	b = self.bodies[0]
 	f = toLocal(filamentPix[0], filamentPix[1])
 	c = cos(b.angle); sn = sin(b.angle)
-	self.glow.moveTo b.x + f[0] * c - f[1] * sn, b.y + f[0] * sn + f[1] * c
+	return [b.x + f[0] * c - f[1] * sn, b.y + f[0] * sn + f[1] * c]
+end function
+
+// The light comes from the filament.  See Part.lightSources.
+Lamp.lightSources = function
+	if not self.lit or not self.bodies then return []
+	f = self.filamentWorld
+	return [[f[0], f[1], config.lampLight]]
 end function
 
 // The glow carries a tint of its own -- its color, and the alpha that is the

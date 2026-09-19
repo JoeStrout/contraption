@@ -7,7 +7,7 @@ ensureImport ["config", "part", "artUtil", "physics", "util"]
 if not env.importPaths.hasIndex("/usr/parts") then env.importPaths.insert 0, "/usr/parts"
 ensureImport "balls block platform lever balance rope tiePoint pulleys".split +
   "weight balloon basket scissors gears belts motor electric".split +
-  "switches relay wire lamp candle fuse explosives".split
+  "switches relay wire lamp candle lens fuse explosives".split
 
 //----------------------------------------------------------------------
 // The registry, for loading a saved design.
@@ -86,6 +86,7 @@ catalog = [
 	{"cls": Relay, "spec": {}, "label": "Relay"},
 	{"cls": Lamp, "spec": {}, "label": "Lamp"},
 	{"cls": Candle, "spec": {}, "label": "Candle"},
+	{"cls": Lens, "spec": {}, "label": "Lens"},
 	{"cls": Fuse, "spec": {}, "label": "Fuse"},
 	{"cls": Firecracker, "spec": {}, "label": "Firecracker"},
 	{"cls": Dynamite, "spec": {}, "label": "Dynamite"},

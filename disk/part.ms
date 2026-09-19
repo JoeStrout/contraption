@@ -502,6 +502,14 @@ Part.heatSources = function
 	return []
 end function
 
+// Subclass hook: what this part is giving off light from, as [x, y,
+// brightness] each -- a lit lamp's filament, a candle's flame.  Asked every
+// frame, in every mode, by whatever cares where light comes from, which is so
+// far only a lens.  Brightness is 1 for a lamp.
+Part.lightSources = function
+	return []
+end function
+
 // Subclass hook: work this part asked to have done once the step is over,
 // because doing it during the step would mean adding to or removing from the
 // list `advance` is walking.  `what` is whatever the part passed to

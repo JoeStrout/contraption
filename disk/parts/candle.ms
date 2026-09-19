@@ -107,6 +107,14 @@ Candle.heatSources = function
 	  config.candleHeat)]
 end function
 
+// ...and gives its light from the same place its glow is centered.
+Candle.lightSources = function
+	if not self.lit then return []
+	w = self.wickWorld
+	if w == null then return []
+	return [[w[0], w[1] + glowRise, config.candleLight]]
+end function
+
 // A lit candle is blown out by its own passage through the air, and an unlit
 // one catches from anything hot enough at the wick -- which is what the far
 // end of a fuse is by the time it gets there.  Both are runtime state and

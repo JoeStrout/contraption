@@ -240,6 +240,36 @@ candleGlowAlpha = 0.4
 candleGlowScale = 0.5
 candleGlowFlicker = 0.12
 
+// How much light each source gives a lens to work with; 1 is a lamp.
+lampLight = 1
+candleLight = 0.6
+
+// The lens: a burning glass, fixed to the board, its axis level.  It gathers
+// the light of a lamp or a candle on one side and draws it down to a point
+// on the other, where a thin lens puts it: on the line from the source
+// through the lens's middle, at d' = 1 / (1/f - 1/d) beyond it.  So a source
+// nearer than the focal length is never brought to a point at all, and one a
+// little beyond it throws the point a long way off.  See parts/lens.ms.
+lensFocalLength = 60        // px; a lamp two of these off focuses two beyond
+lensReach = 320             // px: a source further off than this is ignored
+lensFullDist = 120          // nearer than this, the lens catches all it can
+lensMaxThrow = 420          // px: a focus further off than this is not drawn
+// How far off the axis a source may be.  Past about 40 degrees a real lens
+// smears its focus out into nothing useful, and the cone fades out over the
+// last `lensAngleFade` degrees rather than blinking off.
+lensMaxAngle = 40
+lensAngleFade = 10
+// The cone itself: drawn additively, in `lensConeLayers` nested sheets that
+// share the focus, so the middle of the beam is brighter than its edges.
+// Past the focus it opens out again for `lensAfterglow` of the length it took
+// to close, fading as it goes.
+lensConeColor = "#FFE8B0"
+lensConeAlpha = 0.5
+lensConeLayers = 4
+lensAfterglow = 0.5
+lensSpotRadius = 7          // the bright point at the focus
+lensSpotAlpha = 0.9
+
 // The candle's flame: the first particle effect, and the one every fire in
 // the game will be built from.  The particle is the same radial gradient the
 // pool of light is, shrunk right down -- a soft blob, which is what a flame

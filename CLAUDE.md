@@ -62,7 +62,7 @@ disk/            mounted as /usr; the game
   particles.ms     the particle system, and the Flame built on it
   parts/           one module per type: balls, block, platform, lever,
                    balance, weight, balloon, basket, scissors, gears,
-                   belts, tiePoint, pulleys, rope, candle, fuse,
+                   belts, tiePoint, pulleys, rope, candle, lens, fuse,
                    explosives (firecracker, dynamite, rocket); and the
                    electrical ones -- electric (the
                    outlet), switches, relay, motor, wire, lamp
@@ -78,7 +78,7 @@ disk/            mounted as /usr; the game
   pics/            pre-rendered art: the ball sprite sheets, the balloon,
                    the basket, the scissors' eight poses, the lamp, relay
                    and candle in both states, the radial glow, and the
-                   firecracker, dynamite and rocket
+                   firecracker, dynamite and rocket, and the lens
   lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
 tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
 tools/syntaxCheck.ms compiles everything on the disk; see above
@@ -375,6 +375,16 @@ start catching fire, that question gets answered with rays, in its own
 module; the glow will still be the picture that says a thing is burning.
 Keeping the two apart is the point.
 
+A **lens** (`parts/lens.ms`) is the first thing that asks where light comes
+from: a lit part answers with `Part.lightSources`, and the lens works out a
+thin-lens focus for each one in reach and not too far off its (level) axis.
+The cone of light it throws cannot be a picture, since it changes shape with
+every move of the lamp, so it is a `Sprite` subclass (`LightCone`) whose
+`draw` is overridden to issue raylib triangles directly, additively, in
+screen coordinates.  Being a Sprite is what lets it sit in the part's
+`sprites` and be restacked like any glow.  The focus is only drawn so far;
+it is not yet a heat source.
+
 A **particle system** (`particles.ms`) is a fixed pool of sprites, allocated
 once.  A dead particle is not removed from the pool, it simply has no image,
 so nothing is allocated per particle.
@@ -465,6 +475,12 @@ which imports once, into globals.  `importUtil` itself is the one plain
   `artUtil.fillCircle` / `drawCircle` go through that instead.  Worth fixing
   upstream in `PixelDisplay.ms` eventually; until then, prefer them for
   anything bigger than a bolt head.
+- **An overridden `Sprite.draw` runs with the host's globals, not the game's**,
+  because the display system calls it from Mini Micro's render loop.  So
+  `config`, `color` and every other `ensureImport`ed name are undefined there
+  (`Undefined Identifier`).  The function's defining module scope is still
+  visible, so pin what it needs at module level -- see the top of
+  `parts/lens.ms`.
 - `super` resolves from the class the running function was *defined* in, so a
   three-deep override chain (`Balance` -> `Lever` -> `Part`) works and does not
   recurse.
