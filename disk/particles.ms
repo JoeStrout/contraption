@@ -232,6 +232,51 @@ ParticleSystem.buildTints = function
 end function
 
 //----------------------------------------------------------------------
+// Smolder: the thin wisp off something that is heating up and has not caught
+// yet -- a fuse or a wick under a lens's focus.  It is the only sign the
+// player gets that the aim is good and the waiting is worth it, so it starts
+// well before the thing lights and thickens as it gets closer.
+//
+// It is an ordinary ballistic system with the numbers of smoke rather than
+// of fire: slow, gray, spreading as it goes, and drifting up rather than
+// climbing the way a flame does.
+//----------------------------------------------------------------------
+
+globals.Smolder = new ParticleSystem
+
+Smolder.make = function(image)
+	ps = super.make(image, config.smolder.count)
+	ps.rate = config.smolder.rate
+	ps.life = config.smolder.life
+	ps.lifeVar = config.smolder.lifeVar
+	ps.speed = config.smolder.speed
+	ps.speedVar = config.smolder.speedVar
+	ps.dir = pi / 2
+	ps.spread = config.smolder.spread
+	ps.accelY = config.smolder.rise
+	ps.drag = config.smolder.drag
+	ps.startScale = config.smolder.startScale
+	ps.endScale = config.smolder.endScale
+	ps.startTint = config.smolder.startColor
+	ps.endTint = config.smolder.endColor
+	return ps
+end function
+
+// How hard to smoke, given a warmth as a fraction of the kindling point.
+// Nothing shows below the threshold; above it the trickle thickens, so that
+// a fuse about to go is visibly closer than one merely warm.
+Smolder.setHeat = function(frac)
+	if frac < config.smolder.threshold then
+		self.emitting = false
+		return
+	end if
+	self.emitting = true
+	f = (frac - config.smolder.threshold) / (1 - config.smolder.threshold)
+	if f > 1 then f = 1
+	self.rate = config.smolder.rate * (0.3 + 0.7 * f)
+end function
+
+//----------------------------------------------------------------------
 // Flame: the one every fire in the game is built from.
 //
 // A flame is not a spray of debris and does not behave like one.  What makes

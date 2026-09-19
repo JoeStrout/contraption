@@ -272,11 +272,25 @@ usual Baumgarte bias) is wrong here rather than merely inexact.
 Heat is points, not a field (`heat.ms`).  A part that is burning hands back
 one or more *sources* -- a place, a reach, and how fierce it is -- from
 `Part.heatSources`; a part that can catch asks `heat.at` how hot it is where
-it stands.  There is no diffusion, nothing cools, and nothing has a
-temperature.  That is the same ceiling `circuit.ms` puts on electricity, for
-the same reason.  The one real number is `power`, because a lens will
-eventually have to light things a candle cannot, and that keeps the catalogue
-of what lights what down to two constants per part instead of code.
+it stands.  There is no diffusion.  A source's `power` is a *rate*: each
+place that can catch keeps a `warmth` (runtime state, cleared on Stop),
+`heat.warm` adds power to it per second and leaks it away with the time
+constant `config.heatCoolTime`, and the place catches when warmth reaches
+the part's kindling point (`config.*Kindle`).  So a flame lights a fuse in a
+tenth of a second, a lens's focus takes seconds, a fuse pulled out of the
+focus cools off again, and anything whose power times `heatCoolTime` is
+short of the kindling point never lights it at all -- which is how a lamp
+through a lens lights a fuse and a candle through one does not.  Something
+moving past fast (a rocket's exhaust) gets little time in reach, so it needs
+far more power than a flame standing still.
+
+A source is not a hard circle: it is at full power over the inner part of
+its reach and fades to nothing at the rim (`config.heatFalloff`), which is
+what gives a lens room to be a few pixels off -- parts snap to the grid and
+a focus does not.  And anything warming past `smolderThreshold` of its
+kindling point gives off a `Smolder` (`particles.ms`), because otherwise a
+fuse three seconds from lighting looks exactly like one that will never
+light.
 
 Sources are gathered once a step, in `advance`, after the physics has moved
 everything and before any part asks whether it has caught.  **Design mode
@@ -294,7 +308,8 @@ points every frame in design mode and frozen once play starts -- which is what "
 "pinned to the board" amount to, and is also what lets half a burnt fuse stay
 hanging in the air exactly where the whole one was.  Burning is two numbers,
 how much has gone from each end; catching is a walk along what is left,
-asking `heat.at` every few pixels.  Near an end, that end lights.  Anywhere
+warming sample points every few pixels -- fixed along the whole cord, so a
+point keeps its warmth as the fronts eat in.  Near an end, that end lights.  Anywhere
 else the fuse comes apart into two fuses, each alight at the new end.  The
 front is itself a heat source, which is the whole of how a fuse lights the
 next thing -- nothing in `fuse.ms` knows what a candle is.
@@ -307,8 +322,8 @@ A **firecracker**, a stick of **dynamite** and a **rocket**
 board between two fastenings, while this is a pigtail that has to ride around
 with whatever it is stuck in.  That fuse is the whole reason an explosive is a
 puzzle piece -- lighting one still leaves a second or two before anything
-happens.  Its tip is the part's one tie point, which is also where it asks
-`heat.at` whether it has caught, so running a fuse to it works by
+happens.  Its tip is the part's one tie point, which is also where it
+warms up and catches, so running a fuse to it works by
 construction; while it burns it is itself a heat source, so explosives chain.
 
 Both are pre-rendered pictures (`pics/`), and the picture is the authority the
@@ -380,10 +395,10 @@ from: a lit part answers with `Part.lightSources`, and the lens works out a
 thin-lens focus for each one in reach and not too far off its (level) axis.
 The cone of light it throws cannot be a picture, since it changes shape with
 every move of the lamp, so it is a `Sprite` subclass (`LightCone`) whose
-`draw` is overridden to issue raylib triangles directly, additively, in
-screen coordinates.  Being a Sprite is what lets it sit in the part's
-`sprites` and be restacked like any glow.  The focus is only drawn so far;
-it is not yet a heat source.
+`draw` is overridden to go straight to rlgl -- a mesh of quads with a color
+on every vertex, drawn additively in screen coordinates.  Being a Sprite is what lets it sit in the part's
+`sprites` and be restacked like any glow.  Each focus is also a gentle heat
+source.
 
 A **particle system** (`particles.ms`) is a fixed pool of sprites, allocated
 once.  A dead particle is not removed from the pool, it simply has no image,
@@ -475,6 +490,13 @@ which imports once, into globals.  `importUtil` itself is the one plain
   `artUtil.fillCircle` / `drawCircle` go through that instead.  Worth fixing
   upstream in `PixelDisplay.ms` eventually; until then, prefer them for
   anything bigger than a bolt head.
+- **An imported module keeps only its last 255 names**, dropping the earlier
+  ones with no error at all.  `config.ms` hit this and the symptom was
+  `Key Not Found: 'fieldWidth'` -- the first constants in the file had
+  silently stopped existing, because a constant had been added at the bottom.
+  A top-level script is fine; it is modules that truncate.  So a group of
+  settings belonging to one part goes in `config` as *one map*
+  (`config.lens`, `config.smolder`), not as a dozen names.
 - **An overridden `Sprite.draw` runs with the host's globals, not the game's**,
   because the display system calls it from Mini Micro's render loop.  So
   `config`, `color` and every other `ensureImport`ed name are undefined there

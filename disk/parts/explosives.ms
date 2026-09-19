@@ -84,6 +84,7 @@ Explosive.fuseEnd = "boom"          // what the end of the fuse asks for: a
 // Runtime, all of it, and all of it cleared by onStop.
 Explosive.lit = false               // the fuse is burning
 Explosive.burnt = 0                 // px of it gone
+Explosive.warmth = 0                // how near its tip is to catching; see heat.ms
 Explosive.spent = false             // it has gone off
 Explosive.blastX = 0                // where it went off, since the bodies are
 Explosive.blastY = 0                // taken away at that moment
@@ -91,6 +92,7 @@ Explosive.fireTime = 0              // seconds the fireball is still hot
 Explosive.lingerLeft = 0            // ...and until the wreck is swept up
 Explosive.flashLeft = 0
 Explosive.capSparks = null          // per-instance; see makeSprites
+Explosive.smolder = null            // the wisp off a tip that is warming
 Explosive.blastSparks = null
 Explosive.smoke = null
 Explosive.flash = null
@@ -102,6 +104,7 @@ end function
 
 Explosive.clearRun = function
 	self.lit = false
+	self.warmth = 0
 	self.burnt = 0
 	self.spent = false
 	self.fireTime = 0
@@ -191,6 +194,7 @@ Explosive.onStop = function
 	// syncSprites does nothing while we are still spent.
 	self.clearRun
 	super.onStop
+	if self.smolder != null then self.smolder.clear
 	if self.capSparks != null then self.capSparks.clear
 	if self.blastSparks != null then self.blastSparks.clear
 	if self.smoke != null then self.smoke.clear
@@ -218,20 +222,20 @@ Explosive.update = function(dt)
 		if self.burnt >= L then self.world.defer self, self.fuseEnd
 		return
 	end if
-	self.checkCatch
+	self.checkCatch dt
 end function
 
-// Is it hot enough at the tip of the fuse to light it?  Its own hook, so
-// that a type which is busy -- a rocket in the air -- can decline to catch
-// again without having to repeat the rest of `update`.
-Explosive.checkCatch = function
+// Has the tip of the fuse soaked up enough heat to light?  See heat.ms.  Its
+// own hook, so that a type which is busy -- a rocket in the air -- can
+// decline to catch again without having to repeat the rest of `update`.
+Explosive.checkCatch = function(dt)
 	f = self.fuseLocals
 	if not f then return
 	t = self.localToWorld(f[0][0], f[0][1])
 	if t == null then return
-	if heat.at(self.world, t[0], t[1]) >= config.explosiveLightHeat then
-		self.lit = true
-	end if
+	self.warmth = heat.warm(self.warmth, heat.at(self.world, t[0], t[1]), dt)
+	if self.warmth >= config.explosiveKindle then self.lit = true
+	if self.smolder != null then self.smolder.moveTo t[0], t[1]
 end function
 
 Explosive.applyDeferred = function(what, arg)
@@ -423,6 +427,8 @@ Explosive.makeSprites = function
 	  self.flashScale)
 	self.sprites.push self.flash.sprite
 
+	self.smolder = Smolder.make(glowImg)
+	self.sprites.push self.smolder.sprites
 	self.capSparks = makeCapSparks
 	self.blastSparks = makeBlastSparks(self.sparkCount)
 	self.sprites.push self.capSparks.sprites
@@ -441,7 +447,8 @@ end function
 // it goes over everything.
 Explosive.frontSprites = function
 	if self.flash == null then return []
-	out = [self.flash.sprite, self.capSparks.sprites, self.blastSparks.sprites]
+	out = [self.flash.sprite, self.smolder.sprites, self.capSparks.sprites,
+	  self.blastSparks.sprites]
 	if self.smoke != null then out.push self.smoke.sprites
 	return out
 end function
@@ -451,6 +458,13 @@ Explosive.updateEffects = function(dt)
 	// Driven from the state every frame rather than switched at the moment it
 	// changes, for the reason Fuse.updateEffects gives: nothing can then
 	// drift out of step with what the part is actually doing.
+	// The wisp while the cap is warming, and nothing once it has caught.
+	if self.lit or self.spent then
+		self.smolder.setHeat 0
+	else
+		self.smolder.setHeat self.warmth / config.explosiveKindle
+	end if
+	self.smolder.update dt
 	self.capSparks.emitting = self.lit and not self.spent
 	if self.capSparks.emitting then
 		f = self.frontWorld
@@ -751,9 +765,9 @@ end function
 // A rocket in the air has a fuse that is already gone and a motor that is
 // already lit; without this the tip would sit in its own exhaust and light
 // the thing a second time.
-Rocket.checkCatch = function
+Rocket.checkCatch = function(dt)
 	if self.flying then return
-	super.checkCatch
+	super.checkCatch dt
 end function
 
 Rocket.applyDeferred = function(what, arg)
@@ -840,7 +854,7 @@ Rocket.heatSources = function
 	t = self.localToWorld(rkArt.tail[0], rkArt.tail[1])
 	if t == null then return []
 	return [heat.source(t[0], t[1], config.rocketExhaustHeatRadius,
-	  config.explosiveFuseHeat)]
+	  config.rocketExhaustHeat)]
 end function
 
 //----------------------------------------------------------------------

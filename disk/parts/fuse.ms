@@ -22,8 +22,9 @@
 // they meet, the fuse is gone.  Either end may be alight; a fuse tied
 // between two lit candles burns from both.
 //
-// CATCHING is a walk along what is left, asking heat.ms how hot it is at
-// points a few pixels apart.  Near an end, that end catches.  Anywhere else
+// CATCHING is a walk along what is left, warming points a few pixels apart
+// by however hot heat.ms says it is at each, and catching where one of them
+// reaches its kindling point.  Near an end, that end catches.  Anywhere else
 // and the fuse comes apart into two fuses, each alight at the new end --
 // which is what a real one does, and is the reason the burn is two numbers
 // on a frozen polyline rather than one part creeping along.
@@ -62,6 +63,10 @@ Fuse.eatenHead = 0
 Fuse.eatenTail = 0
 Fuse.litHead = false
 Fuse.litTail = false
+Fuse.warmth = null                  // per-instance: sample index -> warmth
+Fuse.hotSpot = null                 // runtime: [x, y, warmth] of the warmest
+                                    // point, which is where it smokes
+Fuse.smolder = null                 // per-instance; see makeSprites
 Fuse.sparkHead = null               // per-instance; see makeSprites
 Fuse.sparkTail = null
 Fuse.glowHead = null
@@ -73,6 +78,8 @@ Fuse.init = function
 	self.eatenTail = 0
 	self.litHead = false
 	self.litTail = false
+	self.warmth = {}
+	self.hotSpot = null
 end function
 
 // Take the line from the fastenings as soon as there are any, rather than
@@ -190,6 +197,8 @@ Fuse.onPlay = function
 	self.eatenTail = 0
 	self.litHead = false
 	self.litTail = false
+	self.warmth = {}
+	self.hotSpot = null
 end function
 
 Fuse.onStop = function
@@ -198,6 +207,9 @@ Fuse.onStop = function
 	self.eatenTail = 0
 	self.litHead = false
 	self.litTail = false
+	self.warmth = {}
+	self.hotSpot = null
+	if self.smolder != null then self.smolder.clear
 	if self.sparkHead != null then self.sparkHead.clear
 	if self.sparkTail != null then self.sparkTail.clear
 end function
@@ -214,40 +226,77 @@ Fuse.update = function(dt)
 	end if
 	// Both ends alight: there is nothing left that could catch that is not
 	// already burning.
-	if not (self.litHead and self.litTail) then self.checkCatch
+	// Cleared here rather than in the walk, so that a fuse which returns
+	// early from it -- nothing hot anywhere, or both ends already alight --
+	// stops smoking rather than smoking on at the last place it was warm.
+	self.hotSpot = null
+	if not (self.litHead and self.litTail) then self.checkCatch dt
 end function
 
-// Walk what is left, a few pixels at a time, and see if any of it is in
-// something hot enough.  The walk starts at the head, so a fuse lying in a
-// flame at one end catches at that end rather than in the middle.
-Fuse.checkCatch = function
+// Walk what is left, a few pixels at a time, warming each point by however
+// hot it is there and catching where one gets to config.fuseKindle.  The
+// walk starts at the head, so a fuse lying in a flame at one end catches at
+// that end rather than in the middle.
+//
+// The points are fixed along the whole shape -- the kth is k * fuseSampleStep
+// from the head end as it was run -- rather than along what is left, so a
+// point keeps its warmth while the fronts eat in from either end.  The far
+// end is a point of its own (key -1), whatever the length divides into: it
+// is the end that will be lying in whatever this fuse is meant to light, and
+// missing it by four pixels would be missing it entirely.
+//
+// Only points that are warm at all are kept, and the map is rebuilt every
+// step from those still on the fuse, so what has burnt away is forgotten.
+Fuse.checkCatch = function(dt)
 	w = self.world
-	if w == null or not w.heat then return
-	pts = self.remaining
-	if pts == null or pts.len < 2 then return
-	L = util.polyLength(pts)
+	if w == null then return
+	if not w.heat and not self.warmth then return
+	shape = self.spec.shape
+	if shape == null or shape.len < 2 then return
+	a = self.eatenHead
+	b = self.shapeLength - self.eatenTail
+	if b <= a then return
 	step = config.fuseSampleStep
-	s = 0
-	while true
-		p = util.pointAt(pts, s)
-		if heat.at(w, p[0], p[1]) >= config.fuseLightHeat then
-			// A catch that was swallowed as "this bit is already alight" is
-			// not the end of the walk: something else further along -- a
-			// candle against the middle of a fuse already burning at one end
-			// -- still has to be found.
-			if self.catchAt(self.eatenHead + s) then return
-		end if
-		if s >= L then return
-		s = s + step
-		// The far end always gets asked, however the length divides up: it is
-		// the end that will be lying in whatever this fuse is meant to light,
-		// and missing it by four pixels would be missing it entirely.
-		if s > L then s = L
+	keys = []
+	k = ceil(a / step)
+	while k * step <= b
+		keys.push k
+		k = k + 1
 	end while
+	if not keys or keys[-1] * step < b then keys.push -1
+
+	old = self.warmth
+	self.warmth = {}
+	caught = false
+	for k in keys
+		if k < 0 then pos = b else pos = k * step
+		v = 0
+		if old.hasIndex(k) then v = old[k]
+		h = 0
+		p = null
+		if w.heat then
+			p = util.pointAt(shape, pos)
+			h = heat.at(w, p[0], p[1])
+		end if
+		if h == 0 and v == 0 then continue
+		v = heat.warm(v, h, dt)
+		// The warmest point is where the smoke comes off.  Worked out here
+		// rather than kept sorted: the walk is already visiting every point.
+		if self.hotSpot == null or v > self.hotSpot[2] then
+			if p == null then p = util.pointAt(shape, pos)
+			self.hotSpot = [p[0], p[1], v]
+		end if
+		// One catch a step.  A catch that was swallowed as "this bit is
+		// already alight" does not count: something else further along -- a
+		// lens on the middle of a fuse already burning at one end -- still
+		// has to be found.
+		if v >= config.fuseKindle and not caught then
+			if self.catchAt(pos) then caught = true
+		end if
+		if v > 0.001 then self.warmth[k] = v
+	end for
 end function
 
-// Something caught, `s` along the whole shape.  Near an end, that end is
-// alight; anywhere else the fuse comes apart there.
 // Something caught, `s` along the whole shape.  Near an end, that end is
 // alight; anywhere else the fuse comes apart there.  False if the point was
 // already on fire and there was nothing to do.
@@ -384,6 +433,8 @@ end function
 
 Fuse.makeSprites = function
 	self.spriteDisp = self.world.partDisp
+	self.smolder = Smolder.make(glowImg)
+	self.sprites.push self.smolder.sprites
 	self.sparkHead = makeSparks
 	self.sparkTail = makeSparks
 	self.glowHead = Glow.make(glowImg, config.fuseGlowColor,
@@ -410,10 +461,10 @@ end function
 Fuse.frontSprites = function
 	if self.sparkHead == null then return []
 	if config.glowInFront then
-		return [self.glowHead.sprite, self.glowTail.sprite,
+		return [self.glowHead.sprite, self.glowTail.sprite, self.smolder.sprites,
 		  self.sparkHead.sprites, self.sparkTail.sprites]
 	end if
-	return [self.sparkHead.sprites, self.sparkTail.sprites]
+	return [self.smolder.sprites, self.sparkHead.sprites, self.sparkTail.sprites]
 end function
 
 // The sparks and the little light at each front are driven from the flags
@@ -426,6 +477,17 @@ end function
 Fuse.updateEffects = function(dt)
 	if self.world == null or self.glowHead == null then return
 	t = self.world.effectTime
+	// The wisp off wherever the cord is warmest, which says the aim is good
+	// before there is anything else to see.
+	if self.smolder != null then
+		if self.hotSpot == null then
+			self.smolder.setHeat 0
+		else
+			self.smolder.moveTo self.hotSpot[0], self.hotSpot[1]
+			self.smolder.setHeat self.hotSpot[2] / config.fuseKindle
+		end if
+		self.smolder.update dt
+	end if
 	for head in [true, false]
 		if head then
 			lit = self.litHead; ps = self.sparkHead; g = self.glowHead

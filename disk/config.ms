@@ -1,5 +1,11 @@
 // config.ms
 // Screen layout, tuning constants, and the UI color scheme, all in one place.
+//
+// KEEP THE NAMES HERE UNDER 255.  An imported module holds only its last 255
+// names and drops the earlier ones without saying so, which shows up as the
+// first constants in this file simply not existing.  A group of settings
+// that belongs to one part goes in one map (see `lens` and `smolder`) rather
+// than being spelled out as a dozen names.
 
 // The screen is 960 x 640: the playfield on the left, the panel on the right.
 fieldWidth = 760
@@ -250,25 +256,39 @@ candleLight = 0.6
 // through the lens's middle, at d' = 1 / (1/f - 1/d) beyond it.  So a source
 // nearer than the focal length is never brought to a point at all, and one a
 // little beyond it throws the point a long way off.  See parts/lens.ms.
-lensFocalLength = 60        // px; a lamp two of these off focuses two beyond
-lensReach = 320             // px: a source further off than this is ignored
-lensFullDist = 120          // nearer than this, the lens catches all it can
-lensMaxThrow = 420          // px: a focus further off than this is not drawn
-// How far off the axis a source may be.  Past about 40 degrees a real lens
-// smears its focus out into nothing useful, and the cone fades out over the
-// last `lensAngleFade` degrees rather than blinking off.
-lensMaxAngle = 40
-lensAngleFade = 10
-// The cone itself: drawn additively, in `lensConeLayers` nested sheets that
-// share the focus, so the middle of the beam is brighter than its edges.
-// Past the focus it opens out again for `lensAfterglow` of the length it took
-// to close, fading as it goes.
-lensConeColor = "#FFE8B0"
-lensConeAlpha = 0.5
-lensConeLayers = 4
-lensAfterglow = 0.5
-lensSpotRadius = 7          // the bright point at the focus
-lensSpotAlpha = 0.9
+//
+// One map rather than a dozen names, because a module may hold only 255 of
+// them -- see the note at the top of this file.
+lens = {
+	"focalLength": 60,      // px; a lamp two of these off focuses two beyond
+	"reach": 320,           // px: a source further off than this is ignored
+	"fullDist": 120,        // nearer than this, the lens catches all it can
+	"maxThrow": 420,        // px: a focus further off than this is not drawn
+	// How far off the axis a source may be.  Past about 40 degrees a real
+	// lens smears its focus out into nothing useful, and the cone fades out
+	// over the last `angleFade` degrees rather than blinking off.
+	"maxAngle": 40,
+	"angleFade": 10,
+	// The cone itself, drawn additively.  `coneAlpha` is how bright the
+	// middle of the beam gets, at the focus.  Past the focus it opens out
+	// again for `afterglow` of the length it took to close, fading as it goes.
+	"coneColor": "#FFE8B0",
+	"coneAlpha": 0.5,
+	"afterglow": 0.5,
+	"spotRadius": 7,        // the bright point at the focus
+	"spotAlpha": 0.9,
+	// The focus is a heat source: `heat` at full strength -- a lamp, near and
+	// square on -- and less as the cone fades.  A lamp's focus lights a fuse
+	// in about 2.5 seconds when it lands within ten pixels of it, about 5 at
+	// fourteen, and never at sixteen or more: half a grid square out still
+	// works and a whole one does not.  A candle through a lens only ever
+	// manages it dead centre, and takes some eight seconds over it.
+	"heat": 0.6,
+	// The reach is wide on purpose.  Parts snap to a 20px grid and the focus
+	// goes wherever the optics send it, so without room to be a few pixels
+	// off the lens would be a part nobody could aim.  The inner 40% of this
+	// (see heatFalloff) is full power, which is about half a grid square.
+	"heatRadius": 24}
 
 // The candle's flame: the first particle effect, and the one every fire in
 // the game will be built from.  The particle is the same radial gradient the
@@ -295,21 +315,33 @@ flameEndScale = 0.012
 flameHotColor = "#FFF0A0D0" // at the wick...
 flameCoolColor = "#FF400000" // ...and at the top, gone
 
-// Heat: what is hot enough to light what.  A source carries `heat` and
-// whatever might catch carries the `light` it takes, and the whole of the
-// catalogue is those two numbers meeting.  See heat.ms.
-candleHeat = 1              // a flame will light a fuse...
+// Heat.  A source's `Heat` is how fast it warms whatever is in its reach,
+// per second, and a thing that can catch has a `Kindle`: the warmth it takes
+// to light it.  Warmth leaks away with a time constant of `heatCoolTime`, so
+// it can never pass power * heatCoolTime -- a source weaker than kindle /
+// heatCoolTime never lights the thing at all, however long it is left
+// there.  See heat.ms.
+//
+// Flames are fierce, so a flame lights a fuse in about a tenth of a second.
+// A lens is gentle, so it takes seconds -- and how many depends on how near
+// its focus lands, since a focus a grid square off is out of reach and one
+// half that off is merely slower.
+heatCoolTime = 3            // seconds
+// How much of a source's reach it spends fading out: 0.6 leaves the inner
+// 40% at full power.  See heat.at.
+heatFalloff = 0.6
+candleHeat = 10             // a flame lights a fuse in a tenth of a second...
 candleHeatRadius = 9
-candleLightHeat = 0.9       // ...and it takes about a flame to light a wick
+candleKindle = 1            // ...and a wick takes no more than a fuse does
 // ...and how fast the wick may be travelling before the flame is blown out.
 // Measured at the wick rather than at the body, so that a candle whirled
 // round on the end of a lever goes out although its middle has barely moved.
 // 350 px/s is about 3.5 m/s: a candle knocked off a shelf is out before it
 // lands, one merely shoved along a table is not.
 candleBlowOutSpeed = 350
-fuseHeat = 1                // a burning fuse is as hot as the flame that lit it
+fuseHeat = 10               // a burning fuse is as hot as the flame that lit it
 fuseHeatRadius = 7
-fuseLightHeat = 0.5         // and a fuse is the easiest thing on the board to light
+fuseKindle = 1              // and a fuse is the easiest thing on the board to light
 
 // The fuse: a stiff cord between two fastenings, which burns.
 //
@@ -371,15 +403,15 @@ sparkCoolColor = "#FF500000"
 // a 1 kg part at ground zero leaves at that many pixels a second; the engine
 // wants it times pxPerMeter^2 (see Weight.density).
 //
-// What a blast BREAKS is the same two-constants arrangement heat uses: the
+// What a blast BREAKS is much the same two-constants arrangement heat uses: the
 // blast carries a `power` and every part carries the power it takes to break
 // it (Part.breakPower, zero for everything that cannot be broken at all).
 // Only dynamite has any power, which is what makes it the one thing in the
 // game that destroys a block or a platform.
-explosiveLightHeat = 0.5    // its cap is as easy to light as a fuse...
-explosiveFuseHeat = 1       // ...and burns as hot as one, so they chain
+explosiveKindle = 1         // its cap is as easy to light as a fuse...
+explosiveFuseHeat = 10      // ...and burns as hot as one, so they chain
 explosiveFuseHeatRadius = 7
-explosionHeat = 1           // the fireball itself, while it lasts
+explosionHeat = 30          // the fireball itself, over its fireTime: plenty
 explosionHeatFrac = 0.5     // of the blast radius: the fire, not the pressure
 explosionFireTime = 0.2     // seconds it is hot for
 explosionLinger = 2.5       // seconds of smoke before the wreck is swept up
@@ -466,6 +498,27 @@ smokeEndScale = 0.34
 smokeStartColor = "#585048C0"
 smokeEndColor = "#8A857E00"
 
+// Smolder: the wisp off something a lens is heating that has not caught yet.
+// Without it a fuse that is seconds from lighting looks exactly like a fuse
+// that will never light, and the player has no way to tell whether the aim
+// is good.  It starts when the thing is `threshold` of the way to its
+// kindling point and thickens from there.
+smolder = {
+	"count": 12,            // sprites it costs each part that can smolder
+	"threshold": 0.3,
+	"rate": 14,             // born per second, at full warmth
+	"life": 0.9,
+	"lifeVar": 0.3,
+	"speed": 14,
+	"speedVar": 7,
+	"spread": 0.5,
+	"rise": 16,             // px/sec^2: it drifts up rather than climbing
+	"drag": 1.5,
+	"startScale": 0.018,
+	"endScale": 0.075,
+	"startColor": "#6A625870",
+	"endColor": "#9A948C00"}
+
 // The trickle of sparks off an explosive's own fuse while it burns down: the
 // warning that something is about to happen, and much quieter than the fuse
 // part's sparkler, since this one is a few pixels long.
@@ -492,3 +545,7 @@ rocketExhaustDrag = 3
 rocketExhaustStartScale = 0.05
 rocketExhaustEndScale = 0.012
 rocketExhaustHeatRadius = 12  // the flame out the back, which lights fuses
+// ...as it goes by, which is over in a few hundredths of a second.  Warmth
+// is gained per second, so a flame passing at speed has to be far fiercer
+// than one standing still to get a fuse to kindle in the time it is in reach.
+rocketExhaustHeat = 80

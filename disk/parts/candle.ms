@@ -71,6 +71,8 @@ Candle.defaultSpec = Part.defaultSpec + {"restitution": 0.05, "friction": 0.7,
   "linearDamping": 0.02, "angularDamping": 0.05, "lit": false}
 
 Candle.lit = false                  // runtime: burning right now
+Candle.warmth = 0                   // runtime: how near the wick is to catching
+Candle.smolder = null               // per-instance: the wisp while it warms
 Candle.glow = null                  // per-instance
 Candle.flame = null
 
@@ -116,10 +118,10 @@ Candle.lightSources = function
 end function
 
 // A lit candle is blown out by its own passage through the air, and an unlit
-// one catches from anything hot enough at the wick -- which is what the far
-// end of a fuse is by the time it gets there.  Both are runtime state and
-// neither touches spec: Stop puts the candle back to however the design left
-// it.
+// one catches once its wick has soaked up enough heat -- from the far end of
+// a fuse, near enough at once, or from a lens's focus, over a few seconds.
+// All of it is runtime state and none of it touches spec: Stop puts the
+// candle back to however the design left it.
 Candle.update = function(dt)
 	super.update dt
 	if self.world == null then return
@@ -132,11 +134,22 @@ Candle.update = function(dt)
 		v = self.bodies[0].velocityAt(w[0], w[1])
 		if v[0] * v[0] + v[1] * v[1] > config.candleBlowOutSpeed ^ 2 then
 			self.setLit false
+			self.warmth = 0
 		end if
 		return
 	end if
-	if heat.at(self.world, w[0], w[1]) >= config.candleLightHeat then
-		self.setLit true
+	self.warmth = heat.warm(self.warmth, heat.at(self.world, w[0], w[1]), dt)
+	if self.warmth >= config.candleKindle then self.setLit true
+end function
+
+// The wisp off a wick that is warming but has not caught.  Driven from the
+// warmth every frame rather than switched when it changes, as the flame is.
+Candle.showWarmth = function
+	if self.smolder == null then return
+	if self.lit then
+		self.smolder.setHeat 0
+	else
+		self.smolder.setHeat self.warmth / config.candleKindle
 	end if
 end function
 
@@ -187,6 +200,8 @@ end function
 // Stop restores the design, and being alight is part of the design.
 Candle.onStop = function
 	super.onStop
+	self.warmth = 0
+	if self.smolder != null then self.smolder.clear
 	self.setLit self.spec.lit
 end function
 
@@ -195,6 +210,10 @@ Candle.updateEffects = function(dt)
 	t = self.world.effectTime
 	if self.glow != null then self.glow.update t
 	if self.flame != null then self.flame.update dt
+	if self.smolder != null then
+		self.showWarmth
+		self.smolder.update dt
+	end if
 end function
 
 //----------------------------------------------------------------------
@@ -206,8 +225,8 @@ Candle.image = function
 	return offImg
 end function
 
-// The sprites are [candle, glow, flame pool] -- three entries, the last of
-// them a list, which a SpriteDisplay draws depth first.  Putting the pool in
+// The sprites are [candle, glow, smolder pool, flame pool] -- the last two
+// of them lists, which a SpriteDisplay draws depth first.  Putting the pool in
 // the part's own list is what makes destroy, moveSpritesTo and the restacking
 // account for it; the flame system only ever owns the particles' motion.  The
 // pool goes last, so the flame is drawn over the candle.
@@ -220,6 +239,9 @@ Candle.makeSprites = function
 	self.glow = Glow.make(glowImg, config.candleGlowColor,
 	  config.candleGlowAlpha, config.candleGlowScale, config.candleGlowFlicker)
 	self.sprites.push self.glow.sprite
+
+	self.smolder = Smolder.make(glowImg)
+	self.sprites.push self.smolder.sprites
 
 	self.flame = Flame.make(glowImg, config.flameCount)
 	f = self.flame
@@ -272,6 +294,7 @@ Candle.syncSprites = function
 	wx = w[0]
 	wy = w[1]
 	if self.flame != null then self.flame.moveTo wx, wy
+	if self.smolder != null then self.smolder.moveTo wx, wy
 	// The pool of light hangs where the bright part of the flame is, which is
 	// a little above the wick rather than on it.
 	if self.glow != null then self.glow.moveTo wx, wy + glowRise
