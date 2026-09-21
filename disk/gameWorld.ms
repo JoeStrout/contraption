@@ -259,8 +259,8 @@ end function
 
 GameWorld.play = function
 	if self.mode == GameWorld.DESIGN then
-		// Play may destroy parts -- scissors cut a rope in two, and a balloon
-		// will one day pop -- and Stop has to be able to put them back.
+		// Play may destroy parts -- scissors cut a rope in two, a balloon
+		// pops -- and Stop has to be able to put them back.
 		// Nothing else can restore a part that no longer exists, so the whole
 		// design is written out here and read back if anything went.
 		self.snapshot = self.save

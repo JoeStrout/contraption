@@ -399,7 +399,9 @@ end function
 // drag -- and where it lands is where its first end is made fast.  From
 // there it trails from the mouse until a second tie point is clicked.  A
 // click on a pulley's wheel is neither end: the rope carries on over it,
-// which is all a block and tackle needs to be built.
+// which is all a block and tackle needs to be built.  Shift-clicking (or
+// Return) instead cuts it off where the mouse is, leaving it tied at one
+// end and hanging free at the other.
 //----------------------------------------------------------------------
 
 Editor.shiftDown = function
@@ -418,6 +420,21 @@ Editor.pinFreePoint = function(mx, my)
 	if not self.shiftDown then return false
 	self.linkPts.push [null, mx, my]
 	self.overlayDirty = true
+	return true
+end function
+
+// Shift ends the run where the mouse is rather than looking for something to
+// fasten to: the rope is tied at the points picked so far and loose from
+// there out, which is what Return does as well.  A link that may be pinned to
+// the board means something else by shift (see pinFreePoint, which is asked
+// first), and one with no loose end worth authoring -- a belt, a wire --
+// makes nothing of it at all.
+Editor.cutLooseHere = function(mx, my)
+	if self.linkKind != "rope" then return false
+	if not self.linkCls.allowsLooseEnd then return false
+	if self.linkCls.allowsFreePoints then return false
+	if not self.shiftDown or not self.linkPts then return false
+	self.finishLooseRope mx, my
 	return true
 end function
 
@@ -468,6 +485,7 @@ end function
 
 Editor.onLinkClick = function(mx, my)
 	if self.pinFreePoint(mx, my) then return
+	if self.cutLooseHere(mx, my) then return
 	tie = self.linkTarget(mx, my)
 	if tie == null then
 		self.cancelLink
@@ -565,9 +583,13 @@ Editor.finishLooseRope = function(mx, my)
 	for p in self.linkPts
 		pts.push {"part": p[0].id, "tie": p[1]}
 	end for
-	r = self.linkCls.make({"points": pts, "freeEnd": true, "fixedLength": true})
-	self.world.addPart r
 	last = self.linkPts[-1][0].tieWorld(self.linkPts[-1][1])
+	// The line it was drawn along is where it starts out lying: a rope let go
+	// falls from there rather than being found already hanging.  See
+	// Rope.addTailBeads.
+	r = self.linkCls.make({"points": pts, "freeEnd": true, "fixedLength": true,
+	  "tail": [[last[0], last[1]], [mx, my]]})
+	self.world.addPart r
 	r.setLength r.measure + sqrt((mx - last[0]) ^ 2 + (my - last[1]) ^ 2)
 	self.endLink r
 end function

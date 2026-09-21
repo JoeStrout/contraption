@@ -53,6 +53,14 @@ jawX0 = 0
 jawX1 = 21
 jawHalfH = 15
 
+// The tips of the two blades, which are the only sharp thing in the game:
+// wide apart in the open pose and together once the scissors are shut.  A
+// rope does not care where they are -- it is cut by the pose reaching
+// cutFrame, wherever it lies between the jaws -- but a balloon does, since
+// what pops it is a point actually inside its skin.
+bladeTipX = 18
+bladeTipY = 7
+
 sheetFrames = function
 	return artUtil.frames(sheetPath, frameWidth, frameCount, frameCount,
 	  frameHeight)
@@ -132,6 +140,20 @@ Scissors.pushedOn = function
 		end for
 	end for
 	return false
+end function
+
+// The blade tips, wherever the closing has got to.  The scissors never move,
+// so this works from the authored pose like toLocal does.
+Scissors.sharpPoints = function
+	s = self.spec
+	y = bladeTipY * (1 - self.frame / (frameCount - 1))
+	c = cos(s.angle); sn = sin(s.angle)
+	out = []
+	for ly in [y, -y]
+		out.push [s.x + bladeTipX * c - ly * sn,
+		  s.y + bladeTipX * sn + ly * c]
+	end for
+	return out
 end function
 
 Scissors.update = function(dt)

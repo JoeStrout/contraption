@@ -124,16 +124,16 @@ because by `update` the step has already been solved.
 mode never steps but still needs collision, to reject overlapping placements.
 
 Play may *destroy* parts -- scissors cut a rope into two loose ones, a fuse
-comes apart where it catches and burns away to nothing -- and Stop still has
-to put the design back.  Putting the bodies where the spec says is no help for
-a part that no longer exists, so `play` writes the whole design out with
-`save`, `addPart` / `removePart` note that something changed, and `stop` reads
-it back if anything did.  A part that wants to add or remove parts mid-step
-must queue the work rather than do it, because `advance` is walking the very
-list it would be changing.  `GameWorld.defer` is that queue: it takes the part
-and a word of its own choosing, and hands both back to the part's
-`applyDeferred` once the step is over.  `cutRope` is a named wrapper on it,
-so the scissors need not know it is there.
+comes apart where it catches and burns away to nothing, a balloon pops -- and
+Stop still has to put the design back.  Putting the bodies where the spec
+says is no help for a part that no longer exists, so `play` writes the whole
+design out with `save`, `addPart` / `removePart` note that something changed,
+and `stop` reads it back if anything did.  A part that wants to add or remove
+parts mid-step must queue the work rather than do it, because `advance` is
+walking the very list it would be changing.  `GameWorld.defer` is that queue:
+it takes the part and a word of its own choosing, and hands both back to the
+part's `applyDeferred` once the step is over.  `cutRope` is a named wrapper
+on it, so the scissors need not know it is there.
 
 ### A few things about the physics engine
 
@@ -260,6 +260,20 @@ is a single scalar constraint (its total path length) solved by impulses after
 the physics step, and that a slack rope is not physics at all but a line of
 beads, run for looks and never pushing back.
 
+A rope with a **free end** -- cut by the scissors, let go by a balloon that
+popped, or run with a loose end in the editor -- carries the line it was
+lying along when it was made, in `spec.tail`, and its beads are laid along
+that before gravity gets them.  Without it a rope snaps to vertical the
+instant it comes loose, which reads as a glitch rather than as a cut.  Being
+in spec, it survives a save and is what Stop puts the beads back to.
+
+A rope can end up free at *both* ends -- cut twice, or tied to nothing but a
+balloon that burst -- and then it is tied to nothing at all: no tie points,
+an empty path, nothing pinned, and every bead falling.  That is a legitimate
+rope and not a dead one, so `cutAt` makes such a piece rather than dropping
+it; the alternative is rope that vanishes in mid air, which no player will
+believe.
+
 `GameWorld.solveRopes` runs after `phys.step` and before the parts' `update`
 hooks, so a rope pulling on a lever arrives in time for the lever's pin to
 turn it into spin.  Ropes that share a body are relaxed together.  The solve
@@ -373,8 +387,31 @@ forever.  It is aimed straight up only
 because the editor has no way to aim it yet; everything about it is written
 in the part's own frame, so an angle in the spec is all that will take.
 
-This is also the one place the game makes a **sound** (`/sys/sounds`, panned
-to where the blast was).
+This is one of the two places the game makes a **sound** (`/sys/sounds`,
+panned to where the blast was); a balloon popping is the other.
+
+### Popping
+
+A balloon is the one thing that can be burst, and it goes two ways.
+Something **sharp** inside its skin does it at once: sharpness is a point,
+not a shape (`Part.sharpPoints`), because the only sharp thing in the game is
+the tips of a pair of scissors, and those are drawn art with no shapes of
+their own -- nothing in the physics knows they are there, so the balloon has
+to ask, and it puts each point to `World.shapesAt` so that the answer comes
+from the hull the physics actually has.  The tips converge as the scissors
+close, which is what makes closing them on a balloon a way to pop it.  Or any
+one point of the skin -- the traced outline and its mirror, which is every
+vertex of that hull -- warms past `config.balloon.kindle`, which is heat.ms's
+arrangement exactly as a fuse uses it, a warmth per sample point and cleared
+on Stop.  Rubber is no harder to light than a fuse.
+
+Afterwards the balloon lingers the way a spent explosive does, because the
+burst is its own sprite: the bodies leave the world, `/sys/pics/Burst.png`
+goes up where the balloon was, `pop.wav` plays panned to it, and it asks to
+be removed once the picture has had its moment.  The string is *let go*
+rather than deleted along with the balloon (`Rope.releaseFrom`, which is
+`cutAt` just short of the tie point and nothing besides), because whatever
+the balloon was lifting should fall rather than vanish with it.
 
 ### Light, and things that are only for the look of them
 

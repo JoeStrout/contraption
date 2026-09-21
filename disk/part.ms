@@ -502,6 +502,16 @@ Part.heatSources = function
 	return []
 end function
 
+// Subclass hook: what this part has got that is sharp enough to puncture
+// something, as [x, y] each, in world coordinates.  A point rather than a
+// shape, and for the same reason heat is: the one sharp thing in the game is
+// the tips of a pair of scissors, which are drawn art with no shapes of
+// their own, so nothing in the physics knows they are there.  Whatever can
+// be punctured asks; see Balloon.prickedBy.
+Part.sharpPoints = function
+	return []
+end function
+
 // Subclass hook: what this part is giving off light from, as [x, y,
 // brightness] each -- a lit lamp's filament, a candle's flame.  Asked every
 // frame, in every mode, by whatever cares where light comes from, which is so

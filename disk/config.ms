@@ -362,6 +362,22 @@ fuseGlowColor = "#FFB060"   // the little pool of light at the front
 fuseGlowAlpha = 0.35
 fuseGlowScale = 0.12
 
+// The balloon, which is the one thing on the board that can be popped.  It
+// goes two ways: something sharp inside its skin, or any point of that skin
+// warmed past `kindle` -- rubber being no harder to light than a fuse, so a
+// flame held against a balloon bursts it in about a tenth of a second and a
+// lamp through a lens takes a few seconds over it.
+//
+// One map rather than four names; see the note at the top of this file.
+balloon = {
+	"kindle": 1,
+	"burstTime": 0.15,      // seconds the burst is drawn for, before the
+	                        // wreckage is swept up
+	"burstScale": 2,        // how far past the balloon the burst spreads
+	"burstAlpha": 0.5,      // ...and how solid it is: a flash, not a shape
+	"popSound": "/sys/sounds/pop.wav",
+	"popVolume": 0.7}
+
 // Sparks off the burning front: a sparkler, which is what a fuse sounds like
 // it should look like.  Unlike the flame these *are* a spray of debris --
 // thrown out hard in every direction, slowed by the air and pulled down -- so

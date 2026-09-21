@@ -92,13 +92,13 @@ end function
 // Cut, it comes apart into wires rather than into ropes, and each piece is
 // a dead end that conducts nothing -- which falls out of endpoints, since a
 // piece has one terminal at most.
-Wire.makePiece = function(w, points, length)
+Wire.makePiece = function(w, points, length, tail=null)
 	pts = []
 	for p in points
 		pts.push {} + p
 	end for
 	r = Wire.make({"points": pts, "freeEnd": true, "fixedLength": true,
-	  "color": self.spec.color})
+	  "color": self.spec.color, "tail": tail})
 	w.addPart r
 	r.setLength length
 	return r

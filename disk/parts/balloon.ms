@@ -9,10 +9,38 @@
 // The highlight is where the light is, not where the balloon is facing, so
 // it gets a sprite of its own that never turns: a balloon swinging on its
 // string keeps its shine in the same corner, the way a real one does.
+//
+// POPPING is two questions asked of the skin, which is the traced outline
+// below and its mirror image -- every vertex of the shape the physics uses.
+// Something sharp inside it bursts it at once (see Part.sharpPoints: the
+// blades of a pair of scissors are art and not shapes, so nothing in the
+// physics knows they are there and the balloon has to ask).  Or any one
+// point of it warms past its kindling point, which is heat.ms's arrangement
+// exactly as a fuse uses it -- a warmth per sample point, cleared on Stop --
+// except that what happens at the end of it is a bang rather than a flame.
+//
+// What is left is a half-faded picture of a burst for a moment and then
+// nothing, the way a spent explosive lingers for its smoke: the sound and the
+// picture are the whole of the effect, so the part has to outlive its own
+// bodies for a moment.  The string is let go rather than deleted with us --
+// see Rope.releaseFrom -- because whatever the balloon was lifting should
+// fall, not vanish along with it.
 //----------------------------------------------------------------------
+
+import "importUtil"
+ensureImport ["config", "part", "artUtil", "util", "heat"]
 
 baseImg = file.loadImage("/usr/pics/balloon.png")
 shineImg = file.loadImage("/usr/pics/balloon_shine.png")
+burstImg = file.loadImage("/sys/pics/Burst.png")
+popSnd = file.loadSound(config.balloon.popSound)
+
+// The burst is drawn half solid, so that it reads as a flash over whatever
+// the balloon was in front of rather than as another part.  It is a wash
+// like the editor's, multiplied into the tint, since the sprite's tint is
+// the only thing there is to say it with.
+burstWash = color.fromList([255, 255, 255,
+  floor(config.balloon.burstAlpha * 255)])
 
 // The balloon's extent within the square art, in source pixels, measured out
 // from the middle of the image so that the drawing is centered on the part's
@@ -27,7 +55,7 @@ artHeight = 60
 
 // The right-hand side of the balloon's outline, traced from the art, as
 // fractions of width and height from the center: the bulb, then the taper
-// down to the knot.  makeBodies mirrors it and hands the lot to addPolygon,
+// down to the knot.  edgeLocals mirrors it and hands the lot to addPolygon,
 // which takes the convex hull -- which a teardrop already is.
 outline = [[0.102, 0.458], [0.250, 0.417], [0.352, 0.350], [0.420, 0.267],
   [0.477, 0.125], [0.443, 0.017], [0.386, -0.067], [0.307, -0.150],
@@ -44,6 +72,25 @@ Balloon.defaultSpec = Part.defaultSpec + {"width": artWidth, "height": artHeight
   "restitution": 0.05, "friction": 0.7,
   "linearDamping": 16, "angularDamping": 8}
 
+// Runtime, all of it cleared by clearRun.
+Balloon.popped = false
+Balloon.burstLeft = 0               // seconds the burst is still drawn for
+Balloon.warmth = null               // per-instance: one per skin point
+
+Balloon.init = function
+	super.init
+	self.clearRun
+end function
+
+Balloon.clearRun = function
+	self.popped = false
+	self.burstLeft = 0
+	self.warmth = []
+	for i in range(0, outline.len * 2 - 1, 1)
+		self.warmth.push 0
+	end for
+end function
+
 Balloon.size = function
 	return [self.spec.width, self.spec.height]
 end function
@@ -54,20 +101,45 @@ Balloon.artScale = function
 	return [s.width / artWidth, s.height / artHeight]
 end function
 
-// The tie point on bottom: the knot, which is where a string goes.
+// The tie point on bottom: the knot, which is where a string goes.  A burst
+// balloon has none, the way a spent explosive has none.
 Balloon.tieLocals = function
+	if self.popped then return []
 	return [[0, -self.spec.height / 2]]
 end function
 
-Balloon.makeBodies = function
+// The skin: the traced outline and its mirror image, at the part's own size,
+// in the part's own frame.  It is both the shape the physics sees and the
+// line the popping is asked about, which is the point of having it in one
+// place -- what bursts a balloon is something at its surface.
+Balloon.edgeLocals = function
 	s = self.spec
-	b = self.addBody
 	pts = []
 	for p in outline
 		pts.push [p[0] * s.width, p[1] * s.height]
 		pts.push [-p[0] * s.width, p[1] * s.height]
 	end for
-	sh = b.addPolygon(pts, s.density)
+	return pts
+end function
+
+// The same points, wherever the balloon has got to.
+Balloon.edgeWorld = function
+	if not self.bodies then return []
+	b = self.bodies[0]
+	c = cos(b.angle); sn = sin(b.angle)
+	o = b.position
+	out = []
+	for p in self.edgeLocals
+		x = p[0] - b.localX; y = p[1] - b.localY
+		out.push [o[0] + x * c - y * sn, o[1] + x * sn + y * c]
+	end for
+	return out
+end function
+
+Balloon.makeBodies = function
+	s = self.spec
+	b = self.addBody
+	sh = b.addPolygon(self.edgeLocals, s.density)
 	sh.setRestitution s.restitution
 	sh.setFriction s.friction
 end function
@@ -108,11 +180,121 @@ Balloon.preStep = function(dt)
 end function
 
 //----------------------------------------------------------------------
+// Popping
+//----------------------------------------------------------------------
+
+Balloon.onPlay = function
+	super.onPlay
+	self.clearRun
+end function
+
+Balloon.onStop = function
+	// Popping took our bodies out of the world.  Usually the reload puts them
+	// back -- something was removed, so Stop reads the snapshot -- but a Stop
+	// pressed while the burst is still on screen has nothing else to do it.
+	if not self.bodies and self.world != null then
+		self.makeBodies
+		self.ties = null
+		self.terms = null
+	end if
+	self.clearRun
+	super.onStop
+	self.showWhole
+end function
+
+Balloon.update = function(dt)
+	super.update dt
+	if self.popped then
+		self.burstLeft = self.burstLeft - dt
+		if self.burstLeft <= 0 then self.world.defer self, "sweep"
+		return
+	end if
+	edge = self.edgeWorld
+	if not edge then return
+	// Both questions are asked, not just the first: a balloon may well be
+	// held over a flame by the scissors that are about to close on it.
+	hot = self.tooHot(edge, dt)
+	if hot or self.prickedBy then self.world.defer self, "pop"
+end function
+
+// Is anything sharp inside our skin?  The point is put to the narrowphase
+// rather than to the outline here, so that it is the shape the physics
+// actually has -- the convex hull of those points -- that answers.
+Balloon.prickedBy = function
+	w = self.world
+	for p in w.parts
+		if util.sameRef(p, self) then continue
+		for s in p.sharpPoints
+			for sh in w.phys.shapesAt(s[0], s[1])
+				if not sh.body.hasIndex("part") then continue
+				if util.sameRef(sh.body.part, self) then return true
+			end for
+		end for
+	end for
+	return false
+end function
+
+// Has any one point of the skin taken enough heat?  Each keeps its own
+// warmth, so a flame has to stay by the same patch of rubber rather than be
+// waved along the side of the balloon.  See heat.ms.
+Balloon.tooHot = function(edge, dt)
+	out = false
+	for i in edge.indexes
+		if i >= self.warmth.len then break
+		self.warmth[i] = heat.warm(self.warmth[i],
+		  heat.at(self.world, edge[i][0], edge[i][1]), dt)
+		if self.warmth[i] >= config.balloon.kindle then out = true
+	end for
+	return out
+end function
+
+Balloon.applyDeferred = function(what, arg)
+	if what == "pop" then
+		self.pop
+	else if what == "sweep" then
+		if self.world != null then self.world.removePart self
+	else
+		super.applyDeferred what, arg
+	end if
+end function
+
+// Burst.  Queued rather than done on the spot, because letting the string go
+// adds and removes parts: see GameWorld.defer.
+Balloon.pop = function
+	w = self.world
+	if w == null or self.popped or not self.bodies then return
+	b = self.bodies[0]
+	x = b.x; y = b.y
+	// Before the bodies go, since a rope works out where it has been cut from
+	// where its tie points currently are.  Over a copy of the list, because
+	// cutting rewrites it.
+	for r in w.ropes[:]
+		if r.dependsOn(self) then r.releaseFrom self
+	end for
+	self.popped = true
+	self.burstLeft = config.balloon.burstTime
+	for bd in self.bodies
+		w.phys.removeBody bd
+	end for
+	self.bodies = []
+	self.ties = null
+	self.terms = null
+	self.showBurst x, y
+	if popSnd != null then
+		pan = x / config.fieldWidth * 2 - 1
+		if pan < -1 then pan = -1
+		if pan > 1 then pan = 1
+		popSnd.play config.balloon.popVolume, pan
+	end if
+end function
+
+//----------------------------------------------------------------------
 // Appearance
 //----------------------------------------------------------------------
 
-// Two sprites on the one body: the balloon, tinted and turning with it, and
-// the highlight, which only ever moves.
+// Three sprites on the one body: the balloon, tinted and turning with it;
+// the highlight, which only ever moves; and the burst, which has no image
+// until there is a burst to draw.
 Balloon.makeSprites = function
 	self.spriteDisp = self.world.partDisp
 	sc = self.artScale
@@ -123,21 +305,30 @@ Balloon.makeSprites = function
 		self.sprites.push sp
 		self.spriteDisp.sprites.push sp
 	end for
+	sp = new Sprite
+	bs = self.spec.width * config.balloon.burstScale / burstImg.width
+	sp.scale = [bs, bs]
+	self.sprites.push sp
+	self.spriteDisp.sprites.push sp
 	// Later sprites draw on top, so the shine is the second one.
 	self.tintSprites
 end function
 
 // The balloon's own color is a tint, so anything the editor lays over it has
 // to be multiplied in rather than assigned; the shine is white light and
-// takes the wash alone.
+// takes the wash alone.  The burst is white art, and takes the balloon's own
+// color for the same reason the balloon does: it is what is left of it --
+// half faded, see burstWash.
 Balloon.tintSprites = function(wash="#FFFFFF")
-	if self.sprites.len < 2 then return
-	self.sprites[0].tint = artUtil.multiply(self.spec.color, wash)
+	if self.sprites.len < 3 then return
+	c = artUtil.multiply(self.spec.color, wash)
+	self.sprites[0].tint = c
 	self.sprites[1].tint = wash
+	self.sprites[2].tint = artUtil.multiply(c, burstWash)
 end function
 
 Balloon.syncSprites = function
-	if not self.bodies then return
+	if not self.bodies or self.sprites.len < 3 then return
 	b = self.bodies[0]
 	for sp in self.sprites
 		sp.x = b.x
@@ -145,6 +336,24 @@ Balloon.syncSprites = function
 	end for
 	self.sprites[0].rotation = b.angle * 180 / pi
 	self.sprites[1].rotation = 0
+end function
+
+// The burst is left where the balloon was: it has no body to follow, and
+// syncSprites does nothing once the bodies are gone.
+Balloon.showBurst = function(x, y)
+	if self.sprites.len < 3 then return
+	self.sprites[0].image = null
+	self.sprites[1].image = null
+	self.sprites[2].image = burstImg
+	self.sprites[2].x = x
+	self.sprites[2].y = y
+end function
+
+Balloon.showWhole = function
+	if self.sprites.len < 3 then return
+	self.sprites[0].image = baseImg
+	self.sprites[1].image = shineImg
+	self.sprites[2].image = null
 end function
 
 Balloon.imageKey = function

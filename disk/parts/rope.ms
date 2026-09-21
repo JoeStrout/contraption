@@ -28,7 +28,12 @@
 // rearranging things never leaves ropes drooping about the place.  The
 // exception is a rope with a `freeEnd` -- tied at one end and cut at the
 // other -- which is beads from the moment it is made, and keeps the length
-// it was drawn with.
+// it was drawn with.  It keeps the *line* it was drawn or cut along too
+// (`spec.tail`), and its beads are first laid along that: a rope let go has
+// to be seen falling from where it was, rather than found already hanging.
+// A rope may end up loose at *both* ends -- cut twice, or tied to a balloon
+// that burst -- and then it is tied to nothing at all: no tie points, no
+// path, nothing pinned, and the whole of it falls.
 //
 // SLACK, a rope exerts nothing on anything -- it has no mass worth reckoning
 // with -- so it stops being physics and becomes a line of beads, run purely
@@ -66,7 +71,12 @@ Rope.isRope = true
 Rope.draggable = false
 Rope.bodyType = null                // no bodies at all
 Rope.defaultSpec = Part.defaultSpec + {"points": null, "length": 0,
-  "fixedLength": false, "freeEnd": false, "color": config.ropeColor}
+  "fixedLength": false, "freeEnd": false, "color": config.ropeColor,
+  // The line the loose tail was lying along when the rope was made -- where
+  // it was cut, or where it was drawn -- in world coordinates, from the tie
+  // point it hangs by outward.  Authored state like any other: it is what
+  // the beads are first laid along, and what Stop puts them back to.
+  "tail": null}
 
 Rope.pts = null                     // per-instance: resolved [part, tieIndex]
 // Which sort of point this runs between, and how to find one in the world.
@@ -129,12 +139,15 @@ Rope.links = function
 end function
 
 // Where the rope is made fast, in order.  A rope with a free end is tied at
-// one end only, so a single point is a whole path.
+// one end only, so a single point is a whole path -- and a rope cut at both
+// ends is tied to nothing at all, so an *empty* path is one too.  That last
+// one is nothing but beads: its whole geometry is its tail line, and there
+// is no tie point anywhere to pin them to.
 Rope.path = function
 	pts = self.links
 	if pts == null then return null
 	if self.spec.freeEnd then
-		if pts.len < 1 then return null
+		if pts.len < 1 and self.spec.tail == null then return null
 	else if pts.len < 2 then
 		return null
 	end if
@@ -421,12 +434,15 @@ Rope.startChain = function(path)
 	end for
 	if path.len >= 2 then self.pins.push self.chain.len - 1
 	if tail > 0 then
-		last = path[path.len - 1]
-		// Tied at one end only: the tail is the whole rope, and it starts on
-		// the bead at that one tie point.
-		if not self.chain then self.pins.push 0
-		// Hung straight down, which is where it is going anyway.
-		self.addBeads last, [last[0], last[1] - tail], tail
+		last = null
+		if path then
+			last = path[path.len - 1]
+			// Tied at one end only: the tail is the whole rope, and it starts
+			// on the bead at that one tie point.
+			if not self.chain then self.pins.push 0
+		end if
+		// ...and tied at neither, nothing is pinned: every bead falls.
+		self.addTailBeads last, tail
 	end if
 	for c in self.chain
 		self.chainPrev.push [c[0], c[1]]
@@ -448,6 +464,56 @@ Rope.addBeads = function(a, b, rest)
 		self.chain.push [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]
 		self.linkRest.push rest / (n - 1)
 	end for
+end function
+
+// Lay the loose tail's beads.  A rope that has just been cut, or has just
+// been run with a loose end, is still lying where it was lying: spec.tail is
+// the line it was cut or drawn along, and the beads go along that.  From
+// there gravity has it, which is the whole point -- a rope let go should be
+// seen to fall, not be found already hanging.
+//
+// The beads are spread evenly along that line and given rest/(n-1) of rope
+// each, exactly as addBeads spreads them along a straight run: a tail with
+// more rope in it than the line is long is slack from the first frame and
+// gathers, and one cut from a rope that was taut starts straight.
+//
+// With no line to follow -- a design saved before there was one to save --
+// it hangs straight down, which is where it was going anyway.
+Rope.addTailBeads = function(from, rest)
+	shape = self.tailLine(from)
+	geo = util.polyLength(shape)      // 0 for a null shape
+	if geo < 0.0001 then
+		// A rope held by nothing and with no line to follow has nowhere to
+		// be at all, so there is nothing to lay.
+		if from == null then return
+		self.addBeads from, [from[0], from[1] - rest], rest
+		return
+	end if
+	n = ceil(rest / config.ropeSegment) + 1
+	if n < 2 then n = 2
+	if not self.chain then self.chain.push [shape[0][0], shape[0][1]]
+	for i in range(1, n - 1, 1)
+		self.chain.push util.pointAt(shape, geo * i / (n - 1))
+		self.linkRest.push rest / (n - 1)
+	end for
+end function
+
+// spec.tail, moved so that it starts at `from`: whatever the tail hangs by
+// may have been dragged across the board, or have moved in play, since the
+// line was taken, and the tail goes with it.  A null `from` is a rope held
+// by nothing, which stays exactly where the line puts it.
+Rope.tailLine = function(from)
+	t = self.spec.tail
+	if t == null or t.len < 2 then return null
+	dx = 0; dy = 0
+	if from != null then
+		dx = from[0] - t[0][0]; dy = from[1] - t[0][1]
+	end if
+	out = []
+	for p in t
+		out.push [p[0] + dx, p[1] + dy]
+	end for
+	return out
 end function
 
 // Verlet, then a few passes of "no link may be longer than its rest length".
@@ -546,7 +612,9 @@ end function
 // What is left is up to two ropes, each still made fast wherever it still has
 // a tie point and loose at the cut, and the rope itself is taken out of the
 // world.  A piece with no tie point left at all -- the far end of something
-// that was already hanging free -- simply falls away.
+// that was already hanging free, or the whole of a rope whose one anchor was
+// a balloon that has just burst -- is made all the same, and falls: it is
+// beads and nothing else, which is what it looked like before the cut too.
 //
 // Whoever does the cutting must queue it rather than call this during a step:
 // see GameWorld.cutRope.
@@ -578,11 +646,73 @@ Rope.cutAt = function(i, t)
 	for k in range(pts.len - 1, n, -1)
 		tail.push pts[k]
 	end for
+	// The line each piece is left lying along, taken before the rope goes:
+	// from the tie point the piece keeps out to where it was cut, or from the
+	// far end of the drawn line when the piece keeps no tie point at all.
+	headFrom = 0
+	if n > 0 then headFrom = pl.pins[n-1]
+	tailFrom = pl.pts.len - 1
+	if n < pl.pins.len then tailFrom = pl.pins[n]
+	headLine = cutLine(pl.pts, headFrom, i, t)
+	tailLine = cutLine(pl.pts, tailFrom, i, t)
 	w.removePart self
 	out = []
-	if head then out.push self.makePiece(w, head, before)
-	if tail then out.push self.makePiece(w, tail, after)
+	// A piece is worth making if it is fastened to anything, or if there is
+	// any rope in it to fall.
+	if head or before > 0 then
+		out.push self.makePiece(w, head, before, headLine)
+	end if
+	if tail or after > 0 then
+		out.push self.makePiece(w, tail, after, tailLine)
+	end if
 	return out
+end function
+
+// The line from vertex `from` of the drawn line out to the cut, which is `t`
+// of the way along the link between vertices i and i+1.  The walk runs
+// forwards or backwards as the cut happens to lie, since the two pieces of a
+// cut rope leave their tie points in opposite directions.
+cutLine = function(pts, from, i, t)
+	out = []
+	if from <= i then
+		for k in range(from, i, 1)
+			out.push [pts[k][0], pts[k][1]]
+		end for
+	else
+		for k in range(from, i + 1, -1)
+			out.push [pts[k][0], pts[k][1]]
+		end for
+	end if
+	out.push util.lerpPt(pts[i], pts[i+1], t)
+	return out
+end function
+
+// Let go of whatever `part` had hold of us.  The world deletes a rope along
+// with any part it is tied to, which is right for a part the player removed
+// and wrong for a balloon that has burst: the string should fall, not go with
+// it.  So this cuts the rope just short of the point it was made fast at
+// there, which leaves the rest of it loose and leaves a stub on the part --
+// and the stub goes when the part does.
+//
+// It is `cutAt` and nothing besides, so a Fuse pinned to the same part comes
+// apart the way a fuse comes apart, without this knowing that it is one.
+Rope.releaseFrom = function(part)
+	pl = self.polyline
+	if pl == null then return []
+	pts = self.spec.points
+	k = null
+	for i in pts.indexes
+		if pts[i].hasIndex("part") and pts[i].part == part.id then
+			k = i
+			break
+		end if
+	end for
+	if k == null or k >= pl.pins.len or not pl.rest then return []
+	j = pl.pins[k]
+	// The link on whichever side of that point there is one: all of the rope
+	// lands on the far piece either way.
+	if j > 0 then return self.cutAt(j - 1, 1)
+	return self.cutAt(0, 0)
 end function
 
 // The cut, once the step it was asked for in is over.  See GameWorld.defer.
@@ -590,14 +720,15 @@ Rope.applyDeferred = function(what, arg)
 	if what == "cut" then self.cutAt arg[0], arg[1]
 end function
 
-// One piece of a cut rope: tied where it still can be, loose from there on.
-Rope.makePiece = function(w, points, length)
+// One piece of a cut rope: tied where it still can be, loose from there on,
+// and lying along the line it was lying along before the cut.
+Rope.makePiece = function(w, points, length, tail=null)
 	pts = []
 	for p in points
 		pts.push {} + p
 	end for
 	r = Rope.make({"points": pts, "freeEnd": true, "fixedLength": true,
-	  "color": self.spec.color})
+	  "color": self.spec.color, "tail": tail})
 	w.addPart r
 	r.setLength length
 	return r
@@ -628,7 +759,9 @@ Rope.draw = function(disp)
 		return
 	end if
 	path = self.trimEnds(self.path)
-	if path == null then return
+	// Fewer than two points is a rope tied at one end or at neither, which is
+	// beads or nothing at all; either way there is no run to draw.
+	if path == null or path.len < 2 then return
 	// Taut: straight runs between the tangent points of each wheel, and the
 	// wrap itself drawn around the rim.  The physics treats a pulley as a
 	// point; only the drawing knows it has a radius.
@@ -729,7 +862,7 @@ end function
 Rope.designBounds = function
 	path = self.chain
 	if path == null then path = self.path
-	if path == null then return [self.spec.x, self.spec.y, 1, 1]
+	if path == null or not path then return [self.spec.x, self.spec.y, 1, 1]
 	x0 = path[0][0]; y0 = path[0][1]; x1 = x0; y1 = y0
 	for p in path
 		if p[0] < x0 then x0 = p[0]
