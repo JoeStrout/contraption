@@ -61,7 +61,9 @@ disk/            mounted as /usr; the game
   heat.ms          what is alight, and what is near enough to catch
   particles.ms     the particle system, and the Flame built on it
   parts/           one module per type: balls, block, platform, lever,
-                   balance, weight, balloon, basket, scissors, gears,
+                   balance, balternator (a bistable seesaw that sends
+                   balls left and right in turn), weight, balloon,
+                   basket, scissors, gears,
                    belts, tiePoint, pulleys, rope, candle, lens, fuse,
                    explosives (firecracker, dynamite, rocket); and the
                    electrical ones -- electric (the

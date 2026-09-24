@@ -5,7 +5,7 @@ import "importUtil"
 ensureImport ["config", "part", "artUtil", "physics", "util"]
 
 if not env.importPaths.hasIndex("/usr/parts") then env.importPaths.insert 0, "/usr/parts"
-ensureImport "balls block platform lever balance rope tiePoint pulleys".split +
+ensureImport "balls block platform lever balance balternator rope tiePoint pulleys".split +
   "weight balloon basket scissors gears belts motor electric".split +
   "switches relay wire lamp candle lens fuse explosives".split
 
@@ -58,6 +58,7 @@ catalog = [
 	{"cls": Lever, "spec": {"length": 200, "pivotFrac": 0.55,
 	  "fulcrumHeight": 40}, "label": "Lever"},
 	{"cls": Balance, "spec": {}, "label": "Balance"},
+	{"cls": Balternator, "spec": {}, "label": "Balternator"},
 	{"cls": Weight, "spec": {"width": 30, "height": 30, "kg": 1}, "label": "1 kg"},
 	{"cls": Weight, "spec": {"width": 40, "height": 40, "kg": 3}, "label": "3 kg"},
 	{"cls": Weight, "spec": {"width": 50, "height": 50, "kg": 5}, "label": "5 kg"},
