@@ -37,35 +37,35 @@ ensureImport ["mathUtil", "config", "physics", "artUtil", "util", "part",
 // Displays.  Lower slot numbers draw on top.
 //----------------------------------------------------------------------
 clear
-display(0).setMode displayMode.text
+display(0).mode = displayMode.text
 globals.text = display(0)
 text.clear
 
-display(1).setMode displayMode.sprite      // the part being dragged
+display(1).mode = displayMode.sprite      // the part being dragged
 dragDisp = display(1)
 dragDisp.clear
 
-display(2).setMode displayMode.pixel       // the panel
+display(2).mode = displayMode.pixel       // the panel
 panelDisp = display(2)
 panelDisp.clear color.clear, 960, 640
 
-display(3).setMode displayMode.pixel       // selection box and handles
+display(3).mode = displayMode.pixel       // selection box and handles
 overlayDisp = display(3)
 overlayDisp.clear color.clear, 960, 640
 
-display(4).setMode displayMode.pixel       // ropes and belts, over the parts
+display(4).mode = displayMode.pixel       // ropes and belts, over the parts
 ropeDisp = display(4)                      // they are fastened to
 ropeDisp.clear color.clear, 960, 640
 
-display(5).setMode displayMode.sprite      // placed parts
+display(5).mode = displayMode.sprite      // placed parts
 partDisp = display(5)
 partDisp.clear
 
-display(6).setMode displayMode.pixel       // pegboard and scenery
+display(6).mode = displayMode.pixel       // pegboard and scenery
 bgDisp = display(6)
 bgDisp.clear config.fieldColor, 960, 640
 
-display(7).setMode displayMode.solidColor
+display(7).mode = displayMode.solidColor
 display(7).color = config.backdropColor
 
 //----------------------------------------------------------------------
@@ -131,6 +131,10 @@ theEditor = Editor.make(world, thePanel, dragDisp, overlayDisp)
 
 drawPegboard
 
+// Whatever was on the board when the game was last quit comes back.
+savePath = "/usr/data/current.json"
+if file.exists(savePath) then world.load file.readLines(savePath).join(char(10))
+
 //----------------------------------------------------------------------
 // Main loop.
 //----------------------------------------------------------------------
@@ -163,6 +167,11 @@ while not key.pressed("escape")
 	theEditor.drawOverlay
 	yield
 end while
+
+// Save the design, not wherever play has got to: stopping puts it back.
+world.stop
+file.makedir "/usr/data"
+file.writeLines savePath, [world.save]
 
 key.clear
 clear

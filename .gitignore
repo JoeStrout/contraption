@@ -12,3 +12,6 @@ art-sources/models/tennis_ball.glb
 # Rendered prop strips.  Derived from art-sources/props/make_props.py; the
 # strips the game actually uses are committed under disk/pics.
 art-sources/props/out/
+
+## Ignore the user data directory
+disk/data
