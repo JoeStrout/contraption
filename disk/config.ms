@@ -56,13 +56,15 @@ restitutionThreshold = 70
 // hands a resting part a few px/s every step, and nothing takes it back.
 // settleSpeed has to sit above that, which is why it is not smaller.
 //
-// We damp hard rather than freeze outright: a frozen part whose support was
-// knocked away would hang in the air, while a damped one builds speed under
-// gravity until it is moving again.
+// We damp hard rather than freeze outright, and let a settled part go again
+// once it has drifted settleDrift from where it settled: a part whose support
+// slides out from under it creeps away under the damping, where one that is
+// only jittering stays put.  See Part.settle.
 settleSpeed = 25        // pixels/second
 settleSpin = 0.4        // radians/second
 settleDelay = 0.35      // seconds under both before a part counts as settled
 settleDamp = 0.2        // velocity kept per step once it does
+settleDrift = 2         // pixels a settled part may creep before it is let go
 
 // How deeply two parts must interpenetrate before we call it an overlap.
 // A little slack lets parts rest flush against each other without the

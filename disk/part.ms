@@ -58,6 +58,8 @@ Part.sprites = null                 // per-instance.  An entry may itself be a
 Part.spriteDisp = null              // the display our sprites are currently on
 Part.world = null                   // the GameWorld we belong to
 Part.settleTime = 0                 // runtime: seconds spent barely moving
+Part.settleAnchor = null            // runtime: where each body was when it
+                                    // settled; see settle
 Part.tethered = false               // runtime: a taut rope is holding us
 Part.ties = null                    // per-instance, resolved lazily; see tieList
 Part.terms = null                   // ...and the same for terminals
@@ -80,6 +82,7 @@ Part.make = function(spec=null)
 	p.bodies = []
 	p.sprites = []
 	p.settleTime = 0
+	p.settleAnchor = null
 	p.ties = null
 	p.terms = null
 	p.powered = false
@@ -632,6 +635,7 @@ end function
 // where spec says.  Subclasses with runtime state clear it here.
 Part.onStop = function
 	self.settleTime = 0
+	self.settleAnchor = null
 	self.tethered = false
 	self.powered = false
 	self.liveTerms = []
@@ -681,6 +685,17 @@ end function
 // Crush the residual jitter of a part that has come to rest.  See the
 // settle* constants in config for why this damps rather than freezes.
 //
+// Damping alone is not enough to let a settled part go again, because it
+// damps what gravity adds as well: a settled part with nothing under it
+// falls at only settleDamp / (1 - settleDamp) of one step's worth of
+// gravity -- 4 px/s -- which is never going to reach settleSpeed.  So a
+// support knocked hard away still works, but one that slides slowly away
+// does not: a ball queued against a pocket wheel oozes into the pocket
+// instead of dropping.  What tells the two apart is where the part is
+// going.  Jitter goes nowhere, while an unsupported part creeps steadily
+// one way, so each body's place is noted as it settles, and a part that
+// has drifted `settleDrift` from there is not settled any more.
+//
 // This is deliberately per-part rather than per-body: a part is one object,
 // and settling half of a multi-body part would tear it.
 Part.settle = function(dt)
@@ -688,23 +703,46 @@ Part.settle = function(dt)
 	// A part on a taut rope is held, not resting: settling a pendulum would
 	// stop it dead at the bottom of its swing.
 	if self.tethered then
-		self.settleTime = 0
+		self.unsettle
 		return
 	end if
 	for b in self.bodies
 		if b.vx * b.vx + b.vy * b.vy > config.settleSpeed ^ 2 or
 		   abs(b.angularVelocity) > config.settleSpin then
-			self.settleTime = 0
+			self.unsettle
 			return
 		end if
 	end for
 	self.settleTime = self.settleTime + dt
 	if self.settleTime < config.settleDelay then return
+	if self.settleAnchor == null then
+		self.settleAnchor = []
+		for b in self.bodies
+			self.settleAnchor.push b.centerOfMass
+		end for
+	else
+		for i in self.bodies.indexes
+			if i >= self.settleAnchor.len then break
+			c = self.bodies[i].centerOfMass
+			a = self.settleAnchor[i]
+			if (c[0] - a[0]) ^ 2 + (c[1] - a[1]) ^ 2 > config.settleDrift ^ 2 then
+				self.unsettle
+				return
+			end if
+		end for
+	end if
 	k = config.settleDamp
 	for b in self.bodies
 		b.setVelocity b.vx * k, b.vy * k
 		b.setAngularVelocity b.angularVelocity * k
 	end for
+end function
+
+// Moving again: it has settleDelay of gravity's full say before it can
+// settle anew, which is several times what it takes to pass settleSpeed.
+Part.unsettle = function
+	self.settleTime = 0
+	self.settleAnchor = null
 end function
 
 // Get ready for the step about to run.  Anything the solver has to be told

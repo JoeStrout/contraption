@@ -126,6 +126,32 @@ Gear.hubBody = function
 	return self.bodies[0]
 end function
 
+// Where the hub's center of mass is, from the axle: nothing, for anything
+// round, but a pocket wheel is a disc with a bite out of it.  Measured from
+// the authored axle rather than the body's origin, since in between two
+// solves the body has drifted off it.
+Gear.hubArm = function
+	b = self.hubBody
+	com = b.centerOfMass
+	return [com[0] - self.spec.x, com[1] - self.spec.y]
+end function
+
+// The two things the train asks of a hub, taken about the axle, which is
+// what it turns about -- the Lever's reasoning, and for the same reason: an
+// off-center hub is flung sideways by whatever hits it, and that sideways
+// momentum is turn about the axle, not something to throw away.
+Gear.hubMoment = function
+	b = self.hubBody
+	r = self.hubArm
+	return b.inertia + b.mass * (r[0] * r[0] + r[1] * r[1])
+end function
+
+Gear.hubMomentum = function
+	b = self.hubBody
+	r = self.hubArm
+	return b.inertia * b.angularVelocity + b.mass * (r[0] * b.vy - r[1] * b.vx)
+end function
+
 // `dt` is the step the torque will be applied over, which a part whose
 // torque comes out of an impulse -- a spool's does -- needs to know.
 Gear.driveTorque = function(dt)
@@ -153,7 +179,9 @@ Gear.setSpin = function(angle, w)
 	s = self.spec
 	b.setAngle angle
 	b.setPosition s.x, s.y
-	b.setVelocity 0, 0
+	// The center of mass swings round the axle, if it is off it at all.
+	r = self.hubArm
+	b.setVelocity -w * r[1], w * r[0]
 	b.setAngularVelocity w
 	self.spin = w
 end function

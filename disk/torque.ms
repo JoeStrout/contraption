@@ -24,6 +24,8 @@
 //      hubWorld        [x, y] of the axle
 //      hubAngle        where it stands now
 //      hubBody         the body that turns, or null
+//      hubMoment       its moment of inertia about the axle
+//      hubMomentum     ...and its angular momentum about the axle
 //      driveTorque(dt) what it drives the train with, in engine units
 //      dragTorque(dt)  and how much of that it loses per unit of speed
 //      spinStop        a direction it cannot turn any further, or 0
@@ -208,8 +210,8 @@ Train.solve = function(dt)
 		b = p.hubBody
 		if b == null then continue
 		r = self.ratio[i]
-		moment = moment + b.inertia * r * r
-		mom = mom + b.inertia * r * b.angularVelocity
+		moment = moment + p.hubMoment * r * r
+		mom = mom + p.hubMomentum * r
 		drive = drive + p.driveTorque(dt) * r
 		drag = drag + p.dragTorque(dt) * r * r
 	end for

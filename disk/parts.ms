@@ -6,7 +6,7 @@ ensureImport ["config", "part", "artUtil", "physics", "util"]
 
 if not env.importPaths.hasIndex("/usr/parts") then env.importPaths.insert 0, "/usr/parts"
 ensureImport "balls block platform lever balance balternator rope tiePoint pulleys".split +
-  "weight balloon basket scissors gears belts motor electric".split +
+  "weight balloon basket scissors gears belts pocketWheel motor electric".split +
   "switches relay wire lamp candle lens fuse explosives".split
 
 //----------------------------------------------------------------------
@@ -76,6 +76,7 @@ catalog = [
 	{"cls": Wheel, "spec": {"radius": 40}, "label": "Large Wheel"},
 	{"cls": StepPulley, "spec": {}, "label": "Step Pulley"},
 	{"cls": Gearwheel, "spec": {}, "label": "Gearwheel"},
+	{"cls": PocketWheel, "spec": {}, "label": "Pocket Wheel"},
 	{"cls": Belt, "spec": {}, "label": "Belt"},
 	{"cls": TiePoint, "spec": {}, "label": "Tie Point"},
 	{"cls": Pulley, "spec": {}, "label": "Pulley"},

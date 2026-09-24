@@ -826,7 +826,7 @@ end function
 // pixels a second and never gets above the threshold at all.
 Rocket.settle = function(dt)
 	if self.pinned or self.flying then
-		self.settleTime = 0
+		self.unsettle
 		return
 	end if
 	super.settle dt

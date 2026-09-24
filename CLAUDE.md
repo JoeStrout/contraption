@@ -64,7 +64,7 @@ disk/            mounted as /usr; the game
                    balance, balternator (a bistable seesaw that sends
                    balls left and right in turn), weight, balloon,
                    basket, scissors, gears,
-                   belts, tiePoint, pulleys, rope, candle, lens, fuse,
+                   belts, pocketWheel, tiePoint, pulleys, rope, candle, lens, fuse,
                    explosives (firecracker, dynamite, rocket); and the
                    electrical ones -- electric (the
                    outlet), switches, relay, motor, wire, lamp
@@ -153,8 +153,11 @@ All of them are worked around in our code; `physics.ms` is used unmodified.
   each shape's restitution every step from the part's speed, so a bounce
   fades out instead of pattering; and `Part.settle`, which crushes the
   velocity of a part that has barely moved for `config.settleDelay`.  Note
-  that `settle` damps hard rather than freezing, so a part whose support is
-  knocked away falls instead of hanging in the air.
+  that `settle` damps hard rather than freezing, and lets a part go once it
+  has drifted `config.settleDrift` from where it settled -- damping alone
+  holds an unsupported part to a 4 px/s crawl that never wakes it, so a
+  support that slides slowly away (a pocket wheel's mouth opening under a
+  queued ball) would leave the part oozing instead of falling.
 - `config.restitutionThreshold` replaces the engine's default of 30, which
   assumes a different scale: gravity 980 px/s^2 makes a meter 100 pixels, so
   30 is 0.3 m/s -- slow enough that the solver's own overlap bias keeps a
@@ -251,6 +254,13 @@ itself (`Part.ropeFixed`) -- instead the spool hands the train the tension
 *and* the load's mass carried round to the rim, as a matched pair, because
 handing over the tension alone makes the drum and the rope whip each other
 apart inside a dozen steps.  `Spool.driveTorque` explains it in full.
+
+A **pocket wheel** is a belted wheel with a quarter cut out of it, a ball
+dispenser: at the foot of a ramp it lets through one tennis ball per turn.
+It is the one hub whose center of mass is off its axle, so the train reads
+each hub's momentum and inertia *about the axle* (`Gear.hubMoment`,
+`hubMomentum`), and `setSpin` swings the center of mass round it -- the
+Lever's arithmetic, which comes to the old answer for anything round.
 
 `notes/torque-parts.md` has the whole plan, including belts and the rough
 edges this leaves.
