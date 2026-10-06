@@ -31,6 +31,7 @@
 globals.Balternator = new Lever
 Balternator.typeName = "balternator"
 Balternator.displayName = "Balternator"
+Balternator.ports = true // the changeover contacts; see Lever
 Balternator.defaultSpec = Lever.defaultSpec + {"fulcrumHeight": 30,
   "postWidth": 8, "postHeight": 30, "postDensity": 0.5,
   "postColor": "#6C7A88", "downSide": 1}

@@ -127,6 +127,11 @@ maskHub = 65535 - catCase
 leverMaxTilt = 40 * pi / 180
 leverFulcrumFlare = 20 * pi / 180
 
+// The contacts in the foot of a balance's or balternator's fulcrum: how tall
+// the block they are set in is, and how close to a stop the bar has to be
+// for it to count as thrown that way.
+leverPorts = {"base": 12, "slack": 1 * pi / 180}
+
 // One meter is this many pixels: gravity 980 px/s^2 against the real
 // 9.8 m/s^2.  A part that wants to weigh a stated number of kilograms picks
 // its density from this -- mass is density * area in pixels, so a density of

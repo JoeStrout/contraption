@@ -25,6 +25,13 @@
 // The bar's travel stops where its descending end reaches the bottom of the
 // part's footprint, which is the ground the fulcrum stands on.  Its rising
 // end does sweep above the footprint; parts want headroom over a lever.
+//
+// A variant with `ports` set stands its fulcrum on a rectangular block, and
+// sets three terminals in that block which make it a double-throw switch:
+// the middle one is the common, joined to the left one while the bar is
+// down against its left stop and to the right one while it is down against
+// its right stop, and to neither in between.  That is the same changeover
+// a relay has, thrown by weight instead of by a coil.
 //----------------------------------------------------------------------
 
 globals.Lever = new Part
@@ -40,6 +47,8 @@ Lever.fulcrum = null
 Lever.barSprite = null      // per-instance, see makeSprites
 Lever.fulcrumSprite = null
 Lever.spin = 0              // runtime: the turn rate we last solved for
+Lever.ports = false         // a variant sets this for the three contacts
+Lever.contactSide = 0       // runtime: which way the contacts last read
 
 Lever.init = function
 	self.bar = null
@@ -47,6 +56,7 @@ Lever.init = function
 	self.barSprite = null
 	self.fulcrumSprite = null
 	self.spin = 0
+	self.contactSide = 0
 end function
 
 //----------------------------------------------------------------------
@@ -102,15 +112,34 @@ Lever.maxTilt = function
 	return t
 end function
 
+// How tall the block under the fulcrum is: none at all for a plain lever,
+// which stands on the point of its triangle's base.
+Lever.baseHeight = function
+	if self.ports then return config.leverPorts.base
+	return 0
+end function
+
 // Half the width of the fulcrum's base.  Its sides are flared out from the
 // bar's steepest tilt, so there is always daylight between the underside of
-// the bar and the slope beneath it.
+// the bar and the slope beneath it -- measured to the top of the block, if
+// there is one, since its corners are what the bar comes nearest.
 Lever.fulcrumHalfWidth = function
 	s = self.spec
-	h = s.fulcrumHeight + s.thickness / 2
+	h = s.fulcrumHeight + s.thickness / 2 - self.baseHeight
 	hw = h / tan(self.maxTilt + config.leverFulcrumFlare)
 	if hw > s.length / 4 then hw = s.length / 4
 	return hw
+end function
+
+// The fulcrum's outline, with its apex at the pivot: a triangle, or with a
+// block under it, a pentagon.
+Lever.fulcrumPoly = function
+	s = self.spec
+	hw = self.fulcrumHalfWidth
+	base = -(s.fulcrumHeight + s.thickness / 2)
+	bh = self.baseHeight
+	if bh <= 0 then return [[0, 0], [hw, base], [-hw, base]]
+	return [[0, 0], [hw, base + bh], [hw, base], [-hw, base], [-hw, base + bh]]
 end function
 
 //----------------------------------------------------------------------
@@ -127,9 +156,7 @@ Lever.makeBodies = function
 	sh.setFilter config.catDefault, config.maskBar
 
 	self.fulcrum = self.addBody(pv[0], pv[1])
-	hw = self.fulcrumHalfWidth
-	base = -(s.fulcrumHeight + s.thickness / 2)
-	fsh = self.fulcrum.addPolygon([[0, 0], [hw, base], [-hw, base]])
+	fsh = self.fulcrum.addPolygon(self.fulcrumPoly)
 	fsh.setRestitution s.restitution
 	fsh.setFriction s.friction
 	fsh.setFilter config.catFulcrum, config.maskFulcrum
@@ -139,6 +166,60 @@ end function
 Lever.onPlay = function
 	self.bar.setType physics.DYNAMIC
 	self.fulcrum.setType physics.STATIC
+	self.contactSide = self.leanSide
+end function
+
+//----------------------------------------------------------------------
+// The contacts, for a lever with `ports`
+//----------------------------------------------------------------------
+
+// Left, common, right, in a row along the block, on the fulcrum's body.
+Lever.terminalLocals = function
+	if not self.ports then return []
+	s = self.spec
+	pv = self.pivotLocal
+	bh = self.baseHeight
+	y = pv[1] - (s.fulcrumHeight + s.thickness / 2) + bh / 2
+	dx = self.portSpread
+	return [[pv[0] - dx, y, 1], [pv[0], y, 1], [pv[0] + dx, y, 1]]
+end function
+
+// How far the outer contacts sit from the middle one: as far in from the
+// block's ends as they are up from its bottom.
+Lever.portSpread = function
+	return self.fulcrumHalfWidth - self.baseHeight / 2
+end function
+
+// Which stop the bar is down against: -1 for the left end down, 1 for the
+// right, 0 for anywhere short of either.  Turning counterclockwise is what
+// lowers the left end, hence the signs.
+Lever.leanSide = function
+	if self.bar == null then return 0
+	t = self.bar.angle - self.spec.angle
+	lim = self.maxTilt - config.leverPorts.slack
+	if t >= lim then return -1
+	if t <= -lim then return 1
+	return 0
+end function
+
+// The common (1) meets whichever outer contact the bar is down on.
+Lever.conducts = function(i, j)
+	if not self.ports then return false
+	side = self.leanSide
+	if side == 0 then return false
+	out = 0
+	if side > 0 then out = 2
+	return (i == 1 and j == out) or (j == 1 and i == out)
+end function
+
+// The contacts have moved if the bar has reached a stop or left one, and
+// then the nets have to be filled again.
+Lever.checkContacts = function
+	if not self.ports then return
+	side = self.leanSide
+	if side == self.contactSide then return
+	self.contactSide = side
+	if self.world != null then self.world.circuitDirty = true
 end function
 
 //----------------------------------------------------------------------
@@ -155,6 +236,7 @@ Lever.update = function(dt)
 	// Sitting against a stop: it may leave, but it may not lean harder.
 	if spin * stop > 0 then spin = 0
 	self.applySpin spin
+	self.checkContacts
 end function
 
 // Put the bar back on its pivot, stopping it at the end of its travel.
@@ -268,7 +350,7 @@ end function
 Lever.fulcrumImageKey = function
 	s = self.spec
 	return "lever-fulcrum:" + self.fulcrumHalfWidth + "x" + s.fulcrumHeight +
-	  ":" + s.thickness + ":" + s.fulcrumColor
+	  ":" + s.thickness + ":" + self.baseHeight + ":" + s.fulcrumColor
 end function
 
 Lever.fulcrumImage = function
@@ -283,12 +365,26 @@ Lever.drawFulcrum = function
 	s = self.spec
 	hw = self.fulcrumHalfWidth
 	h = s.fulcrumHeight + s.thickness / 2
+	bh = self.baseHeight
 	g = artUtil.canvas(hw * 2, h)
 	// Inset by the pen width, so the outline lands inside the canvas.
-	pts = [[hw, h - 1], [hw * 2 - 1, 1], [1, 1]]
+	if bh > 0 then
+		pts = [[hw, h - 1], [hw * 2 - 1, bh], [hw * 2 - 1, 1], [1, 1], [1, bh]]
+	else
+		pts = [[hw, h - 1], [hw * 2 - 1, 1], [1, 1]]
+	end if
 	g.fillPoly pts, s.fulcrumColor
 	g.drawPoly pts, "#00000070", 2
 	g.line 1, 1, hw * 2 - 1, 1, "#00000040", 2
+	if bh > 0 then
+		// The seam between the block and the triangle standing on it.
+		g.line 1, bh, hw * 2 - 1, bh, "#00000050", 1
+		dx = self.portSpread
+		for x in [hw - dx, hw, hw + dx]
+			artUtil.fillCircle g, x, bh / 2, 3.5, config.termPostColor
+			artUtil.drawCircle g, x, bh / 2, 3.5, "#00000070", 1
+		end for
+	end if
 	return g.getImage
 end function
 

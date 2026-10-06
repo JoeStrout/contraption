@@ -19,6 +19,7 @@
 globals.Balance = new Lever
 Balance.typeName = "balance"
 Balance.displayName = "Balance"
+Balance.ports = true // the changeover contacts; see Lever
 Balance.defaultSpec = Lever.defaultSpec + {"fulcrumHeight": 40,
   "panWidth": 44, "panThickness": 8, "panGap": 2,
   "panColor": "#9AA6B2", "panDensity": 0.5, "panRestitution": 0.1,
