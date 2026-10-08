@@ -572,3 +572,14 @@ rocketExhaustHeatRadius = 12  // the flame out the back, which lights fuses
 // is gained per second, so a flame passing at speed has to be far fiercer
 // than one standing still to get a fuse to kindle in the time it is in reach.
 rocketExhaustHeat = 80
+
+// Puzzles: see puzzle.ms.  `wash` is laid over a puzzle part in edit mode --
+// the parts the player will have to supply -- so the author can see at a
+// glance which those are.  The note is how long "Saved" and the like stay
+// up in the panel's title bar.
+puzzle = {
+  "dataDir": "/usr/data",
+  "wash": "#FFFFFF80",
+  "noteTime": 2,
+  "tagColor": "#E0C060",
+}

@@ -268,7 +268,7 @@ end function
 Belt.draw = function(disp)
 	g = self.geometry
 	if g == null then return
-	col = self.spec.color
+	col = self.ghostly(self.spec.color)
 	w = config.beltWidth
 	for r in self.runs(g)
 		disp.line r[0][0], r[0][1], r[1][0], r[1][1], col, w

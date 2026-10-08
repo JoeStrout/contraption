@@ -128,7 +128,7 @@ Wire.drawPlug = function(disp, part, i)
 	// Half a pixel proud of the face it covers.  fillCircle is a polygon
 	// inscribed in the circle it stands for, so two discs of equal radius
 	// leave a thin crescent of the lower one showing at every flat.
-	artUtil.fillCircle disp, w[0], w[1], r + 0.5, self.drawColor
+	artUtil.fillCircle disp, w[0], w[1], r + 0.5, self.ghostly(self.drawColor)
 end function
 
 Wire.drawColor = function

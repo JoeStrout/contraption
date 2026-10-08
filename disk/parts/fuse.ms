@@ -519,7 +519,7 @@ end function
 Fuse.draw = function(disp)
 	pts = self.remaining
 	if pts == null then return
-	c = self.drawColor
+	c = self.ghostly(self.drawColor)
 	w = self.drawWidth
 	for i in range(0, pts.len - 2, 1)
 		disp.line pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1], c, w

@@ -8,7 +8,8 @@
 // panel, so it does not slide underneath while crossing back over.
 
 import "importUtil"
-ensureImport ["config", "parts", "gameWorld", "panel", "rope", "wire", "util"]
+ensureImport ["config", "artUtil", "parts", "gameWorld", "panel", "rope",
+  "wire", "util"]
 
 globals.Editor = {}
 
@@ -53,8 +54,9 @@ end function
 //----------------------------------------------------------------------
 
 // Run one frame of interaction.  Returns the transport action the user asked
-// for ("play", "pause", "stop"), or null.  The transport works in every mode;
-// everything else is design mode only.
+// for ("play", "pause", "stop"), or one of the puzzle's ("run", "save"; see
+// handleKeys), or null.  The transport works in every mode; everything else
+// is design mode only.
 Editor.update = function(mode)
 	mx = mouse.x
 	my = mouse.y
@@ -111,7 +113,8 @@ Editor.update = function(mode)
 	wheel = key.axis("Mouse ScrollWheel")
 	if wheel and self.panel.contains(mx, my) then self.panel.scrollBy -wheel * 48
 
-	self.handleKeys mode
+	keyAction = self.handleKeys(mode)
+	if action == null then action = keyAction
 	return action
 end function
 
@@ -137,8 +140,9 @@ Editor.onMouseDown = function(mx, my)
 
 	p = self.world.partAt(mx, my)
 	// Scenery -- the floor, the walls -- is not selectable, and clicking it
-	// means the same as clicking empty space.
-	if p != null and p.fixed then p = null
+	// means the same as clicking empty space.  Neither is what a puzzle
+	// handed the player.
+	if p != null and not self.canEdit(p) then p = null
 	// Clicking a part that is already selected means something else: see
 	// tryCycle.  Noted before the selection moves, and acted on at the
 	// release, because until then this might yet turn into a drag.
@@ -201,13 +205,40 @@ Editor.tryCycle = function(mx, my)
 	if p.cycleState then self.overlayDirty = true
 end function
 
+// Whether this part is the user's to move, change or delete: not scenery,
+// and not a part the puzzle laid out for the player.
+Editor.canEdit = function(p)
+	return not p.fixed and not self.world.isLocked(p)
+end function
+
+// Returns an action for the main loop, or null.  "run" swaps between laying
+// the puzzle out and playing it -- for now; a menu will do that later -- and
+// "save" writes it out.
 Editor.handleKeys = function(mode)
+	action = null
 	while key.available
 		k = key.get
-		if mode != GameWorld.DESIGN then continue
 		// Not mid-drag: the drag still holds a reference to the part, and
 		// would put a destroyed one back down on release.
 		if self.state == Editor.DRAGGING or self.state == Editor.SHAPING then continue
+		if k == "r" or k == "R" then
+			action = "run"
+			continue
+		end if
+		// Saving works while the puzzle is being tested, too: what is saved
+		// is the layout the run started from (see Puzzle.capture).
+		if (k == "s" or k == "S") and self.world.authoring then
+			action = "save"
+			continue
+		end if
+		if mode != GameWorld.DESIGN then continue
+		if (k == "p" or k == "P") and self.world.authoring and
+		   self.state != Editor.LINKING then
+			if self.selected != null then
+				self.selected.setPuzzle not self.selected.isPuzzle
+			end if
+			continue
+		end if
 		if self.state == Editor.LINKING then
 			if k == char(27) then
 				self.cancelLink
@@ -230,12 +261,13 @@ Editor.handleKeys = function(mode)
 				self.cancelLink
 				continue
 			end if
-			if self.selected != null and not self.selected.fixed then
+			if self.selected != null and self.canEdit(self.selected) then
 				self.world.removePart self.selected
 				self.select null
 			end if
 		end if
 	end while
+	return action
 end function
 
 //----------------------------------------------------------------------
@@ -305,16 +337,17 @@ Editor.dragTo = function(mx, my)
 	if ok != self.dropOK then
 		self.dropOK = ok
 		self.overlayDirty = true
-		p.tintSprites self.dropWash
+		p.tintSprites self.dropWash(p)
 	end if
 end function
 
 // The wash a dragged part wears: red while it is somewhere it cannot be
 // dropped.  The part lays it on itself, since only the part knows what its
-// own art is tinted with already.
-Editor.dropWash = function
-	if self.dropOK then return "#FFFFFF"
-	return "#FF8080"
+// own art is tinted with already.  Laid over its resting wash, so that a
+// puzzle part stays faded while it is red.
+Editor.dropWash = function(p)
+	if self.dropOK then return p.restWash
+	return artUtil.multiply("#FF8080", p.restWash)
 end function
 
 // Float a part's sprites above the panel while it is being dragged, so they
@@ -325,7 +358,7 @@ end function
 
 // Put them back among the placed parts, untinted.
 Editor.returnSprites = function(p)
-	p.tintSprites
+	p.tintSprites p.restWash
 	p.moveSpritesTo self.world.partDisp
 	// It lands at the end of the layer, which would put an ordinary part
 	// over a basket, and a lamp's glow over everything; the layer is put
@@ -373,7 +406,7 @@ Editor.shapeTo = function(mx, my)
 	end if
 	// Every frame, and not only when it changes: a reshape builds new
 	// sprites, which come untinted.
-	p.tintSprites self.dropWash
+	p.tintSprites self.dropWash(p)
 end function
 
 Editor.endShape = function
@@ -385,7 +418,7 @@ Editor.endShape = function
 		end for
 		p.reshape
 	end if
-	p.tintSprites
+	p.tintSprites p.restWash
 	self.shapeFrom = null
 	self.state = Editor.IDLE
 	self.dropOK = true
@@ -765,4 +798,11 @@ end function
 Editor.clearSelection = function
 	self.selected = null
 	self.overlayDirty = true
+end function
+
+// The board is about to be laid out afresh: let go of whatever was in hand,
+// since it is about to be a part that no longer exists.
+Editor.reset = function
+	if self.state == Editor.LINKING then self.cancelLink
+	self.clearSelection
 end function

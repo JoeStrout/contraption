@@ -45,6 +45,9 @@ GameWorld.make = function(partDisp)
 	w.torqueDirty = true
 	w.circuitDirty = true   // ...and the nets, likewise; see solveCircuit
 	w.effectTime = 0    // seconds of flame and flicker; see updateEffects
+	w.authoring = true  // laying a puzzle out, as against solving it
+	w.locked = {}       // id -> true: the parts a player was handed, and may
+	                    // not move; see Puzzle.setUp
 	return w
 end function
 
@@ -138,6 +141,21 @@ GameWorld.syncDependents = function(p)
 		if not util.sameRef(other, p) and other.dependsOn(p) then
 			other.syncSprites
 		end if
+	end for
+end function
+
+// A part the player found on the board and must leave where it is.  Only
+// the editor asks; to the physics it is a part like any other.
+GameWorld.isLocked = function(p)
+	return self.locked.hasIndex(p.id)
+end function
+
+// Put every part's resting wash back on it.  Whether a puzzle part shows
+// faded depends on the mode (see Part.isGhost), so this is called whenever
+// that changes.
+GameWorld.refreshTints = function
+	for p in self.parts
+		p.tintSprites p.restWash
 	end for
 end function
 
@@ -270,6 +288,8 @@ GameWorld.play = function
 		for p in self.parts
 			p.onPlay
 		end for
+		self.mode = GameWorld.PLAY
+		self.refreshTints
 	end if
 	self.mode = GameWorld.PLAY
 end function
@@ -299,6 +319,7 @@ GameWorld.stop = function
 	for p in self.parts
 		p.syncSprites
 	end for
+	self.refreshTints
 end function
 
 //----------------------------------------------------------------------

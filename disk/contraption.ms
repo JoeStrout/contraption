@@ -27,11 +27,24 @@
 //                           pads.  A live wire goes bright, and a powered
 //                           motor turns.
 //   play / pause / stop     run, hold, and reset the simulation
-//   Esc                     quit
+//
+// Puzzles (see puzzle.ms).  Run menu.ms to pick one, and whether to edit or
+// play it; run this directly to edit puzzle1.  Play/stop while editing is
+// testing it.
+//   P                       mark the selected part as a puzzle part (one the
+//                           player must supply; shown faded), or unmark it
+//   S                       save the puzzle, to /usr/data/<name>.json
+//   R                       swap between laying the puzzle out and playing
+//                           it -- the board without its puzzle parts, and
+//                           everything left on it locked in place.  Only
+//                           for a puzzle opened to edit: one opened to play
+//                           stays that way, or R would show the solution.
+//   Esc                     back to the menu, if we came from it, or else
+//                           quit (without saving, either way)
 
 import "importUtil"
 ensureImport ["mathUtil", "config", "physics", "artUtil", "util", "part",
-  "parts", "gameWorld", "panel", "editor"]
+  "parts", "gameWorld", "panel", "editor", "puzzle"]
 
 //----------------------------------------------------------------------
 // Displays.  Lower slot numbers draw on top.
@@ -131,9 +144,29 @@ theEditor = Editor.make(world, thePanel, dragDisp, overlayDisp)
 
 drawPegboard
 
-// Whatever was on the board when the game was last quit comes back.
-savePath = "/usr/data/current.json"
-if file.exists(savePath) then world.load file.readLines(savePath).join(char(10))
+// Which puzzle, and whether to edit or play it, is the menu's to say (see
+// menu.ms), and it says so in globals that `run` keeps.  Run on its own,
+// this edits puzzle1.  A name with no file behind it is a new puzzle, and
+// starts out empty.
+fromMenu = globals.hasIndex("puzzleName")
+if fromMenu then
+	thePuzzle = Puzzle.make(puzzleName)
+	startPlaying = puzzlePlaying
+else
+	thePuzzle = Puzzle.make("puzzle1")
+	startPlaying = false
+end if
+thePuzzle.readFile
+// The author may swap back and forth to try the puzzle out; a player may not.
+canSwitch = not startPlaying
+
+// Lay the board out for the author or for the player.
+setUpPuzzle = function(playing)
+	theEditor.reset
+	thePuzzle.setUp world, playing
+	if playing then thePanel.setTag "PLAYING" else thePanel.setTag "EDITING"
+end function
+setUpPuzzle startPlaying
 
 //----------------------------------------------------------------------
 // Main loop.
@@ -152,6 +185,15 @@ while not key.pressed("escape")
 		world.pause
 	else if action == "stop" then
 		world.stop
+	else if action == "run" and canSwitch then
+		// Leaving the editor, the layout is taken first, so that coming back
+		// finds it as it was left, saved or not.
+		if not thePuzzle.playing then thePuzzle.capture world
+		setUpPuzzle not thePuzzle.playing
+	else if action == "save" then
+		thePuzzle.capture world
+		thePuzzle.writeFile
+		thePanel.showNote "SAVED"
 	end if
 
 	world.advance elapsed
@@ -168,10 +210,11 @@ while not key.pressed("escape")
 	yield
 end while
 
-// Save the design, not wherever play has got to: stopping puts it back.
-world.stop
-file.makedir "/usr/data"
-file.writeLines savePath, [world.save]
-
+// Let go of Esc first, or its auto-repeat lands in the menu's key buffer and
+// quits that as well.
+while key.pressed("escape")
+	yield
+end while
 key.clear
 clear
+if fromMenu then run "menu"

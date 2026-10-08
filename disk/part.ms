@@ -497,6 +497,47 @@ Part.tintSprites = function(wash="#FFFFFF")
 	end for
 end function
 
+// A puzzle part is one the player has to supply: it is in the author's
+// layout, and is taken out of the board the player is handed.  That is an
+// authored fact about the design, so it lives in spec like everything else;
+// it is left out of a part's spec altogether when it is false, rather than
+// written into every save as one more default.
+Part.isPuzzle = function
+	return self.spec.hasIndex("puzzle") and self.spec.puzzle
+end function
+
+Part.setPuzzle = function(on)
+	if on then
+		self.spec.puzzle = true
+	else if self.spec.hasIndex("puzzle") then
+		self.spec.remove "puzzle"
+	end if
+	self.tintSprites self.restWash
+end function
+
+// Shown faded: a puzzle part, while its author is laying the puzzle out.
+// Not while it runs, where it is just one more part of the machine.
+Part.isGhost = function
+	w = self.world
+	if w == null or not w.authoring or w.mode != GameWorld.DESIGN then return false
+	return self.isPuzzle
+end function
+
+// The wash a part wears when nothing in particular is happening to it.
+Part.restWash = function
+	if self.isGhost then return config.puzzle.wash
+	return "#FFFFFF"
+end function
+
+// The same for a part with no sprites, which draws itself onto the links
+// layer: a color to draw in, faded if the part is a ghost.  That layer is
+// not shared with the parts, so the alpha shows them through rather than
+// punching a hole in anything.
+Part.ghostly = function(c)
+	if not self.isGhost then return c
+	return artUtil.multiply(c, config.puzzle.wash)
+end function
+
 // Subclass hook: what this part has got that is hot enough to set something
 // alight, as [x, y, radius, power] each.  A lit candle has its flame, a
 // burning fuse has its front.  Gathered once a step and only in play; see
@@ -591,6 +632,9 @@ Part.build = function(world)
 	self.makeBodies
 	self.makeSprites
 	self.syncSprites
+	// New sprites come untinted, and a puzzle part has to come back faded --
+	// from a reshape, or from Stop reading the design back in.
+	if self.isGhost then self.tintSprites self.restWash
 end function
 
 // Take the part back out of the world.

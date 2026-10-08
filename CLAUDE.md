@@ -32,7 +32,7 @@ drive it from a tool call.**  Ask the user to run it:
 
 1. `../MiniMicro2/raylib-miniscript`
 2. mount the `disk` folder (it becomes `/usr`)
-3. `run "contraption"`
+3. `run "menu"` (or `run "contraption"` to go straight to editing puzzle1)
 
 What you *can* do is syntax-check, with the same MiniScript 2 the game runs
 on, headless (no window opens, and it exits by itself):
@@ -53,7 +53,9 @@ There are no tests and no lint step.
 
 ```
 disk/            mounted as /usr; the game
-  contraption.ms   entry point: displays, level scenery, main loop
+  menu.ms          entry point: pick a puzzle, and edit or play it; sets
+                   globals puzzleName / puzzlePlaying and runs contraption
+  contraption.ms   displays, level scenery, main loop
   config.ms        layout, tuning, colors -- all magic numbers live here
   part.ms          the Part base class
   parts.ms         the registry and the palette catalog; imports parts/
@@ -74,6 +76,7 @@ disk/            mounted as /usr; the game
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
   editor.ms        design-mode interaction
+  puzzle.ms        a puzzle file, and setting the board up to edit or play it
   artUtil.ms       procedurally drawn art, and its cache
   util.ms          identity-based list operations, and small geometry:
                    unit vectors, point-to-segment, polyline measuring/trimming
@@ -136,6 +139,28 @@ walking the very list it would be changing.  `GameWorld.defer` is that queue:
 it takes the part and a word of its own choosing, and hands both back to the
 part's `applyDeferred` once the step is over.  `cutRope` is a named wrapper
 on it, so the scissors need not know it is there.
+
+### Puzzles
+
+A puzzle is one file, `/usr/data/<name>.json` (`{version, parts}`, with the
+inventory and win conditions to come beside `parts`).  Its author lays out
+the *finished* machine and marks the parts the player must supply as
+**puzzle parts** -- `spec.puzzle`, absent rather than false, since it is
+authored state like anything else in spec.  The rest are static parts.
+
+There are two axes, and they are independent.  `GameWorld.mode` is still
+DESIGN / PLAY / PAUSED; `GameWorld.authoring` says whom the board is set up
+for.  Editing is authoring + DESIGN, testing is authoring + PLAY, playing is
+not-authoring + DESIGN, playtesting not-authoring + PLAY.  `Puzzle.setUp`
+lays the board out either way: for the player it loads the whole design and
+then `removePart`s each puzzle part (so whatever depended on one goes too),
+and puts every part left in `GameWorld.locked`, by id so that Stop's
+snapshot reload keeps it.  `Editor.canEdit` is what refuses a locked part.
+
+In edit mode a puzzle part is drawn faded (`Part.isGhost` / `restWash`).
+Anything that tints a part's sprites lays its wash over `p.restWash`, not
+over white; a part drawn onto the links layer uses `Part.ghostly` on its
+color; and `GameWorld.refreshTints` is called whenever the mode changes.
 
 ### A few things about the physics engine
 

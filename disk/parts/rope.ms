@@ -749,7 +749,7 @@ Rope.drawWidth = function
 end function
 
 Rope.draw = function(disp)
-	c = self.drawColor
+	c = self.ghostly(self.drawColor)
 	w = self.drawWidth
 	if self.chain != null then
 		ch = self.chain

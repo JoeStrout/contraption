@@ -24,6 +24,9 @@ Panel.make = function(disp)
 	p.hotButton = null      // "play" / "pause" / "stop" under the mouse
 	p.dirty = true
 	p.drawnMode = null
+	p.tag = ""              // which way the puzzle is set up; see setTag
+	p.note = ""             // a word of feedback, shown over the tag a moment
+	p.noteUntil = 0
 	// One icon Image per catalog entry, built once.  Part.image caches by
 	// appearance, so entries that look alike share the same Image.
 	p.icons = []
@@ -31,6 +34,21 @@ Panel.make = function(disp)
 		p.icons.push parts.spawn(entry).paletteImage
 	end for
 	return p
+end function
+
+// The word in the title bar saying what the board is set up for: laying a
+// puzzle out, or solving it.  Until there is a menu, this is how you know.
+Panel.setTag = function(s)
+	if s == self.tag then return
+	self.tag = s
+	self.dirty = true
+end function
+
+// "Saved", and the like: shown in place of the tag for a moment.
+Panel.showNote = function(s)
+	self.note = s
+	self.noteUntil = time + config.puzzle.noteTime
+	self.dirty = true
 end function
 
 Panel.contains = function(x, y)
@@ -120,6 +138,10 @@ end function
 //----------------------------------------------------------------------
 
 Panel.draw = function(mode)
+	if self.note and time > self.noteUntil then
+		self.note = ""
+		self.dirty = true
+	end if
 	if not self.dirty and mode == self.drawnMode then return
 	self.dirty = false
 	self.drawnMode = mode
@@ -137,6 +159,12 @@ Panel.draw = function(mode)
 		title = "GOALS"
 	end if
 	d.print title, L + 16, config.fieldHeight - 24, config.titleColor, "medium"
+	tag = self.tag
+	if self.note then tag = self.note
+	if tag then
+		d.print tag, L + W - 16 - tag.len * 8, config.fieldHeight - 22,
+		  config.puzzle.tagColor, "small"
+	end if
 
 	if mode == GameWorld.DESIGN then
 		self.drawPalette
