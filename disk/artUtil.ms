@@ -21,14 +21,15 @@ end function
 
 // Draw an image scaled to fit inside a box, centered, without distorting it.
 // Used for palette icons, where parts vary a lot in size but the rows do not.
-drawFitted = function(disp, img, left, bottom, width, height)
+drawFitted = function(disp, img, left, bottom, width, height, tint="#FFFFFF")
 	scale = 1
 	if img.width > width or img.height > height then
 		scale = mathUtil.min(width / img.width, height / img.height)
 	end if
 	w = img.width * scale
 	h = img.height * scale
-	disp.drawImage img, left + (width - w) / 2, bottom + (height - h) / 2, w, h
+	disp.drawImage img, left + (width - w) / 2, bottom + (height - h) / 2, w, h,
+	  0, 0, img.width, img.height, tint
 end function
 
 // A rounded-corner filled rectangle, since PixelDisplay has no such call.

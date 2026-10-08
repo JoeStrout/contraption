@@ -48,6 +48,11 @@ GameWorld.make = function(partDisp)
 	w.authoring = true  // laying a puzzle out, as against solving it
 	w.locked = {}       // id -> true: the parts a player was handed, and may
 	                    // not move; see Puzzle.setUp
+	w.designVersion = 0 // bumped by anything that could change what the
+	                    // inventory counts, so the panel need not recount
+	                    // every frame
+	w.puzzleIds = {}    // id -> true: see inPuzzle; good as of the design
+	w.puzzleIdsAt = -1  // version it was worked out for
 	return w
 end function
 
@@ -58,6 +63,7 @@ end function
 GameWorld.addPart = function(p)
 	self.parts.push p
 	self.byId[p.id] = p
+	self.designVersion += 1
 	if p.isRope then self.ropes.push p
 	if p.isBelt then self.belts.push p
 	if p.isWire then self.wires.push p
@@ -123,6 +129,7 @@ GameWorld.removePart = function(p)
 	p.destroy
 	self.parts.remove idx
 	self.byId.remove p.id
+	self.designVersion += 1
 	if p.isRope then util.removeRef self.ropes, p
 	if p.isBelt then util.removeRef self.belts, p
 	if p.isWire then util.removeRef self.wires, p
@@ -148,6 +155,48 @@ end function
 // the editor asks; to the physics it is a part like any other.
 GameWorld.isLocked = function(p)
 	return self.locked.hasIndex(p.id)
+end function
+
+// Will this part be missing from the player's board?  It will if it is a
+// puzzle part, and also if it depends on one -- the rope over a puzzle
+// pulley, the pulley mounted on a puzzle weight -- since nothing is left for
+// it to be fastened to.  So those are puzzle parts too, without having to be
+// marked: they are faded for the author and counted in the inventory.
+//
+// Asked every frame (a rope asks while it draws), so worked out only when
+// the design changes.
+GameWorld.inPuzzle = function(p)
+	if self.puzzleIdsAt != self.designVersion then
+		self.puzzleIds = self.findPuzzleIds
+		self.puzzleIdsAt = self.designVersion
+	end if
+	return self.puzzleIds.hasIndex(p.id)
+end function
+
+// The marked parts, and then outward from them until nothing more turns up:
+// a pulley on a puzzle part, and then the rope over that pulley.
+GameWorld.findPuzzleIds = function
+	ids = {}
+	found = []
+	for p in self.parts
+		if not p.isPuzzle then continue
+		ids[p.id] = true
+		found.push p
+	end for
+	while found
+		more = []
+		for p in self.parts
+			if ids.hasIndex(p.id) then continue
+			for m in found
+				if not p.dependsOn(m) then continue
+				ids[p.id] = true
+				more.push p
+				break
+			end for
+		end for
+		found = more
+	end while
+	return ids
 end function
 
 // Put every part's resting wash back on it.  Whether a puzzle part shows

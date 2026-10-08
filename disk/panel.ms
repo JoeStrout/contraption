@@ -27,6 +27,9 @@ Panel.make = function(disp)
 	p.tag = ""              // which way the puzzle is set up; see setTag
 	p.note = ""             // a word of feedback, shown over the tag a moment
 	p.noteUntil = 0
+	p.rows = parts.catalog.indexes  // the catalog entries shown, in order
+	p.inv = null            // per catalog index, what the inventory says;
+	p.authoring = true      // see setInventory
 	// One icon Image per catalog entry, built once.  Part.image caches by
 	// appearance, so entries that look alike share the same Image.
 	p.icons = []
@@ -51,6 +54,28 @@ Panel.showNote = function(s)
 	self.dirty = true
 end function
 
+// What the inventory says of each catalog entry: from the author's side,
+// [puzzle parts in use, extras]; from the player's, how many are left, or
+// null for an entry the puzzle hands out none of, which is not shown at all.
+// See Puzzle.inventory.
+Panel.setInventory = function(inv, authoring)
+	self.inv = inv
+	self.authoring = authoring
+	self.rows = []
+	for i in inv.indexes
+		if inv[i] != null then self.rows.push i
+	end for
+	self.scrollBy 0     // the list may have got shorter under the scroll
+	self.dirty = true
+end function
+
+// May a part be taken from catalog entry i?  Always for the author; for the
+// player, only while there are some left.
+Panel.canTake = function(i)
+	if self.authoring or self.inv == null then return true
+	return self.inv[i] != null and self.inv[i] > 0
+end function
+
 Panel.contains = function(x, y)
 	return x >= config.panelLeft
 end function
@@ -60,7 +85,7 @@ end function
 //----------------------------------------------------------------------
 
 Panel.contentHeight = function
-	return parts.catalog.len * config.paletteRowHeight
+	return self.rows.len * config.paletteRowHeight
 end function
 
 Panel.maxScroll = function
@@ -69,7 +94,9 @@ Panel.maxScroll = function
 	return over
 end function
 
-// The y of the bottom edge of row i, in screen coordinates.
+// The y of the bottom edge of row i, in screen coordinates.  A row is a
+// place in the list shown, which is not a catalog index once the player's
+// inventory has left some entries out.
 Panel.rowBottom = function(i)
 	return self.top + self.scroll - (i + 1) * config.paletteRowHeight
 end function
@@ -82,13 +109,45 @@ Panel.scrollBy = function(dy)
 	if self.scroll != was then self.dirty = true
 end function
 
-// Which catalog entry is at (x, y), or null.
-Panel.entryAt = function(x, y)
+// Which row is at (x, y), or null.
+Panel.rowAt = function(x, y)
 	if x < config.panelLeft then return null
 	if y < self.bottom or y >= self.top then return null
-	for i in parts.catalog.indexes
-		b = self.rowBottom(i)
-		if y >= b and y < b + config.paletteRowHeight then return i
+	for r in self.rows.indexes
+		b = self.rowBottom(r)
+		if y >= b and y < b + config.paletteRowHeight then return r
+	end for
+	return null
+end function
+
+// Which catalog entry is at (x, y), or null.
+Panel.entryAt = function(x, y)
+	r = self.rowAt(x, y)
+	if r == null then return null
+	return self.rows[r]
+end function
+
+// [left, bottom, size] of row r's button for more extras (delta 1) or fewer
+// (delta -1), which sit at the right of its count line.  Clear of the
+// scrollbar, which is the last few pixels of the panel.
+Panel.extraButtonRect = function(r, delta)
+	sz = config.puzzle.extraButtonSize
+	left = config.panelLeft + config.panelWidth - 14 - sz
+	if delta > 0 then left -= sz + 4
+	return [left, self.rowBottom(r) + 8, sz]
+end function
+
+// The extras button at (x, y), as [catalog index, delta], or null.  The
+// author's alone: the player has no say in what the puzzle hands out.
+Panel.extraButtonAt = function(x, y)
+	if not self.authoring or self.inv == null then return null
+	r = self.rowAt(x, y)
+	if r == null then return null
+	for delta in [1, -1]
+		b = self.extraButtonRect(r, delta)
+		if x >= b[0] and x < b[0] + b[2] and y >= b[1] and y < b[1] + b[2] then
+			return [self.rows[r], delta]
+		end if
 	end for
 	return null
 end function
@@ -182,17 +241,26 @@ Panel.drawPalette = function
 	rowH = config.paletteRowHeight
 
 	d.setClip L, self.bottom, W, self.top - self.bottom
-	for i in parts.catalog.indexes
+	for r in self.rows.indexes
+		i = self.rows[r]
 		entry = parts.catalog[i]
-		b = self.rowBottom(i)
+		b = self.rowBottom(r)
 		// Rows outside the visible band cost us nothing but a compare.
 		if b + rowH < self.bottom or b > self.top then continue
 		if i == self.hotEntry then
 			artUtil.fillRoundRect d, L + 6, b + 3, W - 12, rowH - 6, 6,
 			  config.buttonColor
 		end if
-		artUtil.drawFitted d, self.icons[i], L + 14, b + 4, 48, rowH - 8
-		d.print entry.label, L + 72, b + rowH / 2 - 6, config.labelColor, "small"
+		// One the player has run out of is shown dim: it is still there to
+		// say what the puzzle handed out, but there is none left to take.
+		if self.canTake(i) then tint = "#FFFFFF" else tint = "#FFFFFF50"
+		artUtil.drawFitted d, self.icons[i], L + 14, b + 4, 48, rowH - 8, tint
+		if self.inv == null then
+			d.print entry.label, L + 72, b + rowH / 2 - 6, config.labelColor, "small"
+			continue
+		end if
+		d.print entry.label, L + 72, b + rowH / 2 + 2, config.labelColor, "small"
+		self.drawCount r, i, b
 	end for
 	d.clearClip
 
@@ -206,6 +274,35 @@ Panel.drawPalette = function
 		d.fillRect L + W - 7, self.bottom, 3, trackH, config.buttonOffColor
 		d.fillRect L + W - 7, thumbY, 3, thumbH, config.panelEdgeColor
 	end if
+end function
+
+// The count line under a row's label.  The author sees "3 + 1": three in use
+// as puzzle parts, one extra, with the buttons that change the extras.  The
+// player sees only what is left.
+Panel.drawCount = function(r, i, b)
+	d = self.disp
+	L = config.panelLeft
+	y = b + 10
+	n = self.inv[i]
+	if not self.authoring then
+		if n > 0 then
+			d.print n + " left", L + 72, y, config.puzzle.tagColor, "small"
+		else
+			d.print "none left", L + 72, y, config.buttonOffColor, "small"
+		end if
+		return
+	end if
+	c = config.labelColor
+	if n[0] > 0 or n[1] > 0 then c = config.puzzle.tagColor
+	d.print n[0] + " + " + n[1], L + 72, y, c, "small"
+	for delta in [1, -1]
+		rect = self.extraButtonRect(r, delta)
+		artUtil.fillRoundRect d, rect[0], rect[1], rect[2], rect[2], 4,
+		  config.panelEdgeColor
+		if delta > 0 then glyph = "+" else glyph = "-"
+		d.print glyph, rect[0] + rect[2] / 2 - 4, rect[1] + 2,
+		  config.buttonIconColor, "small"
+	end for
 end function
 
 Panel.drawButtons = function(mode)

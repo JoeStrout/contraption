@@ -512,15 +512,19 @@ Part.setPuzzle = function(on)
 	else if self.spec.hasIndex("puzzle") then
 		self.spec.remove "puzzle"
 	end if
-	self.tintSprites self.restWash
+	if self.world == null then return
+	self.world.designVersion += 1
+	// Not only this part: whatever is fastened to it comes and goes with it.
+	self.world.refreshTints
 end function
 
-// Shown faded: a puzzle part, while its author is laying the puzzle out.
-// Not while it runs, where it is just one more part of the machine.
+// Shown faded: a puzzle part, while its author is laying the puzzle out --
+// marked as one, or fastened to one (see GameWorld.inPuzzle).  Not while it
+// runs, where it is just one more part of the machine.
 Part.isGhost = function
 	w = self.world
 	if w == null or not w.authoring or w.mode != GameWorld.DESIGN then return false
-	return self.isPuzzle
+	return w.inPuzzle(self)
 end function
 
 // The wash a part wears when nothing in particular is happening to it.

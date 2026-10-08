@@ -28,8 +28,9 @@ end function
 // The catalog: what the palette offers, in order.
 //
 // An entry is a part class plus the spec to stamp out, so that one class can
-// appear several times at different sizes.  Puzzle mode will later add a
-// `count` field here; nothing else needs to change for that.
+// appear several times at different sizes.  Its label is also its name in a
+// puzzle's inventory (see entryFor), so renaming one orphans the count any
+// saved puzzle keeps under the old name.
 //----------------------------------------------------------------------
 
 catalog = [
@@ -96,7 +97,41 @@ catalog = [
 	{"cls": Wire, "spec": {}, "label": "Power Cord"},
 ]
 
-// A fresh part from a catalog entry.
+// A fresh part from a catalog entry.  It is stamped with the entry it came
+// from, since a puzzle's inventory counts by entry and the part's own spec
+// cannot be trusted to say: a Plank and a Post are both Blocks, and a
+// platform can be stretched into something no entry matches.
 spawn = function(entry)
-	return entry.cls.make(entry.spec)
+	return entry.cls.make(entry.spec + {"kind": entry.label})
+end function
+
+entryByLabel = {}
+for i in catalog.indexes
+	entryByLabel[catalog[i].label] = i
+end for
+
+// The catalog index a part of type `typeName` with this spec came from, or
+// null for one the palette does not offer.  A part with no stamp -- run as a
+// link by the editor rather than spawned, or saved before there were stamps
+// -- is matched on class and on the entry's own spec, and failing that is
+// counted as the first entry of its class.
+entryFor = function(typeName, spec)
+	if spec.hasIndex("kind") and entryByLabel.hasIndex(spec.kind) then
+		return entryByLabel[spec.kind]
+	end if
+	first = null
+	for i in catalog.indexes
+		entry = catalog[i]
+		if entry.cls.typeName != typeName then continue
+		if first == null then first = i
+		match = true
+		for kv in entry.spec
+			if not spec.hasIndex(kv.key) or spec[kv.key] != kv.value then
+				match = false
+				break
+			end if
+		end for
+		if match then return i
+	end for
+	return first
 end function

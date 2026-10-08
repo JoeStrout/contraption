@@ -46,6 +46,7 @@ Editor.make = function(world, thePanel, dragDisp, overlayDisp)
 	e.cycleCand = null             // part whose state a click would advance
 	e.shapeFrom = null             // the spec a reshape started from, to go
 	                               // back to if it ends somewhere bad
+	e.puzzle = null                // whose extras the panel's + and - change
 	return e
 end function
 
@@ -126,8 +127,16 @@ Editor.onMouseDown = function(mx, my)
 	// Buttons and the palette belong to the panel; it is checked first, so a
 	// click in the strip never falls through to the field.
 	if self.panel.contains(mx, my) then
+		extra = self.panel.extraButtonAt(mx, my)
+		if extra != null then
+			if self.puzzle != null then self.puzzle.addExtra extra[0], extra[1]
+			return
+		end if
 		entry = self.panel.entryAt(mx, my)
-		if entry != null then self.beginNewPart entry, mx, my
+		// The player's inventory has run out of it: there is none to take.
+		if entry != null and self.panel.canTake(entry) then
+			self.beginNewPart entry, mx, my
+		end if
 		return
 	end if
 
@@ -234,8 +243,15 @@ Editor.handleKeys = function(mode)
 		if mode != GameWorld.DESIGN then continue
 		if (k == "p" or k == "P") and self.world.authoring and
 		   self.state != Editor.LINKING then
-			if self.selected != null then
-				self.selected.setPuzzle not self.selected.isPuzzle
+			p = self.selected
+			if p != null then
+				// One fastened to a puzzle part is one whatever it is marked,
+				// so unmarking it would change nothing; say why instead.
+				if not p.isPuzzle and self.world.inPuzzle(p) then
+					self.panel.showNote "ATTACHED"
+				else
+					p.setPuzzle not p.isPuzzle
+				end if
 			end if
 			continue
 		end if

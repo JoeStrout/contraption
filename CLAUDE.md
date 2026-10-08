@@ -146,7 +146,11 @@ A puzzle is one file, `/usr/data/<name>.json` (`{version, parts}`, with the
 inventory and win conditions to come beside `parts`).  Its author lays out
 the *finished* machine and marks the parts the player must supply as
 **puzzle parts** -- `spec.puzzle`, absent rather than false, since it is
-authored state like anything else in spec.  The rest are static parts.
+authored state like anything else in spec.  Anything that `dependsOn` a
+puzzle part (a rope over a puzzle pulley) is one too without being marked,
+since it cannot be on the player's board without it: `GameWorld.inPuzzle`
+is the test everything uses, and `isPuzzle` only says what was marked.  The
+rest are static parts.
 
 There are two axes, and they are independent.  `GameWorld.mode` is still
 DESIGN / PLAY / PAUSED; `GameWorld.authoring` says whom the board is set up
@@ -156,6 +160,14 @@ lays the board out either way: for the player it loads the whole design and
 then `removePart`s each puzzle part (so whatever depended on one goes too),
 and puts every part left in `GameWorld.locked`, by id so that Stop's
 snapshot reload keeps it.  `Editor.canEdit` is what refuses a locked part.
+
+The **inventory** is per palette entry: the puzzle parts of it in the
+solution plus the author's `extras` (in the file, by palette label).  A part
+knows which entry it came from by `spec.kind`, stamped by `parts.spawn`;
+`parts.entryFor` reads that, and guesses from class and spec for a part
+without one (a link the editor ran, an old save).  Counting walks the parts,
+so it is redone only when `GameWorld.designVersion` or `Puzzle.version`
+moves, not every frame.
 
 In edit mode a puzzle part is drawn faded (`Part.isGhost` / `restWash`).
 Anything that tints a part's sprites lays its wash over `p.restWash`, not

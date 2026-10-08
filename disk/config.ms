@@ -582,4 +582,5 @@ puzzle = {
   "wash": "#FFFFFF80",
   "noteTime": 2,
   "tagColor": "#E0C060",
+  "extraButtonSize": 16,    // the author's + and - for a puzzle's extras
 }

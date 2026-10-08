@@ -160,6 +160,8 @@ thePuzzle.readFile
 // The author may swap back and forth to try the puzzle out; a player may not.
 canSwitch = not startPlaying
 
+theEditor.puzzle = thePuzzle
+
 // Lay the board out for the author or for the player.
 setUpPuzzle = function(playing)
 	theEditor.reset
@@ -172,6 +174,7 @@ setUpPuzzle startPlaying
 // Main loop.
 //----------------------------------------------------------------------
 lastTime = time
+lastInvKey = null
 while not key.pressed("escape")
 	now = time
 	elapsed = now - lastTime
@@ -203,6 +206,15 @@ while not key.pressed("escape")
 	world.updateRopes elapsed
 	world.updateEffects elapsed
 	world.drawLinks ropeDisp
+
+	// The palette's counts, redone only when something they count has
+	// changed: a part placed or taken away, marked or unmarked as a puzzle
+	// part, or the author's extras -- or the board set up the other way.
+	invKey = [world.designVersion, thePuzzle.version, thePuzzle.playing]
+	if invKey != lastInvKey and world.mode == GameWorld.DESIGN then
+		lastInvKey = invKey
+		thePanel.setInventory thePuzzle.inventory(world), not thePuzzle.playing
+	end if
 
 	thePanel.trackMouse mouse.x, mouse.y, world.mode
 	thePanel.draw world.mode
