@@ -49,6 +49,30 @@ it with a kill after ~20 seconds rather than bare.
 
 There are no tests and no lint step.
 
+**Puzzles can be simulated**, with the game's own code and no one at the
+screen:
+
+```bash
+tools/simPuzzle heavyLifting                 # the solution, 5 s, traced each 1 s
+tools/simPuzzle heavyLifting --player        # the board the player is handed
+tools/simPuzzle heavyLifting --time 3 --every 0.5
+tools/simPuzzle --script path/to/experiment.ms
+```
+
+A script drives the global `sim` (see `tools/sim/sim.ms`): `sim.load name,
+playing`, `sim.add label, spec` (a palette entry, snapped as a drop is),
+`sim.rope [[part, tie], ...]`, `sim.belt`, `sim.wire`, `sim.remove`,
+`sim.run seconds, every, ids`, `sim.state p` and `sim.report ids`.  Use it to
+check that a puzzle's solution works and that the near-misses do not --
+physics finds ways round a design that arithmetic does not.
+
+It opens a *hidden* window, because parts draw their art into render
+textures, which need a GL context.  The tool sandbox cannot reach the window
+server, so `tools/simPuzzle *` is excluded from it in
+`.claude/settings.local.json`; invoke it exactly that way, from the repo
+root.  The host does not exit on a script error, so the wrapper kills it
+after one, and after `SIM_TIMEOUT` seconds (default 60) regardless.
+
 ## Layout
 
 ```
@@ -75,6 +99,7 @@ disk/            mounted as /usr; the game
   torque.ms        gear trains: which wheels turn together, and how fast
   gameWorld.ms     parts, physics, modes, collision queries, save/load
   panel.ms         right-hand palette and transport buttons
+  scenery.ms       the floor and walls every level has
   editor.ms        design-mode interaction
   puzzle.ms        a puzzle file, and setting the board up to edit or play it
   artUtil.ms       procedurally drawn art, and its cache
@@ -88,6 +113,7 @@ disk/            mounted as /usr; the game
   lib/             physics.ms, physicsFallback.ms, matrixUtil.ms
 tools/updateScripts  refreshes disk/lib from ../raylib-miniscript
 tools/syntaxCheck.ms compiles everything on the disk; see above
+tools/simPuzzle  runs a puzzle headless (tools/sim/sim.ms); see above
 art-sources/     Blender sources for disk/pics (see balls/README.md), and
                  art-attribution.txt, whose CC-BY credits must reach the game
 notes/           design notes: the parts eventually wanted, by category

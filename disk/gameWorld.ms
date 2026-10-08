@@ -387,31 +387,40 @@ GameWorld.advance = function(elapsed)
 	self.leftover = self.leftover - steps * dt
 	if self.leftover > dt then self.leftover = dt
 	for i in range(1, steps, 1)
-		// Who is live, before anything reads it: a motor's drive torque is
-		// the first thing preStep and the train solver ask about.
-		self.solveCircuit
-		// Parts first: preStep is where they set up what the step about to
-		// run must see -- the restitution a bounce will use, the inertia a
-		// lever's pan presents to something landing on it.
-		for p in self.parts
-			p.preStep dt
-		end for
-		self.phys.step dt
-		self.solveRopes dt
-		self.solveTorque dt
-		// What is alight, before anything asks whether it has caught.  The
-		// sources are where the parts have just been put, so this comes after
-		// the step rather than before it.  See heat.ms.
-		heat.collect self
-		for p in self.parts
-			p.settle dt
-			p.update dt
-		end for
-		if self.pending then self.applyPending
+		self.step dt
 	end for
 	for p in self.parts
 		p.syncSprites
 	end for
+end function
+
+// One fixed step of the simulation, `dt` long.  advance is what the game
+// calls, with real time; this is the step it takes however many of, and is
+// separate so that the headless simulator (tools/sim) can take exactly as
+// many as it is asked to.  Sprites are not synced here: advance does that
+// once a frame, after the last of its steps.
+GameWorld.step = function(dt)
+	// Who is live, before anything reads it: a motor's drive torque is
+	// the first thing preStep and the train solver ask about.
+	self.solveCircuit
+	// Parts first: preStep is where they set up what the step about to
+	// run must see -- the restitution a bounce will use, the inertia a
+	// lever's pan presents to something landing on it.
+	for p in self.parts
+		p.preStep dt
+	end for
+	self.phys.step dt
+	self.solveRopes dt
+	self.solveTorque dt
+	// What is alight, before anything asks whether it has caught.  The
+	// sources are where the parts have just been put, so this comes after
+	// the step rather than before it.  See heat.ms.
+	heat.collect self
+	for p in self.parts
+		p.settle dt
+		p.update dt
+	end for
+	if self.pending then self.applyPending
 end function
 
 // Work out which parts a live net reaches.  Cached like the trains are, and

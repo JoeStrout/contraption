@@ -1,0 +1,55 @@
+#!/bin/bash
+# simPuzzle -- run a puzzle headless and report where its parts get to.
+# See tools/sim/sim.ms for the options and the --script API.
+#
+# The host mounts /sys from a sys/ folder beside the script it runs, so
+# tools/sim gets a link to Mini Micro's (git-ignored: where it points is this
+# machine's business), and /usr is the game's disk, as when it is played.
+# It runs from Mini Micro's assets folder because Soda finds its screen font
+# relative to the working directory.
+
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$here/.." && pwd)"
+mm="$(cd "$root/../MiniMicro2" && pwd)"
+[ -e "$here/sim/sys" ] || ln -s ../../../MiniMicro2/assets/sys "$here/sim/sys"
+
+# A --script path is the caller's, so make it absolute before we move.
+args=()
+while [ $# -gt 0 ]; do
+	args+=("$1")
+	if [ "$1" = "--script" ] && [ $# -gt 1 ]; then
+		shift
+		case "$1" in /*) args+=("$1") ;; *) args+=("$PWD/$1") ;; esac
+	fi
+	shift
+done
+
+cd "$mm/assets" || exit 1
+
+# The host does not exit on a script error -- it keeps its window open -- so
+# watch for one and end it, and in any case end it after SIM_TIMEOUT seconds
+# so that a runaway simulation cannot hang whoever called us.
+perl -e '
+	my $limit = shift;
+	my $pid = open(my $out, "-|") // die "fork: $!";
+	if (!$pid) { open(STDERR, ">&STDOUT"); exec @ARGV or die "exec: $!"; }
+	my $quiet = qr/^(INFO:|WARNING: (AUDIO|FILEIO)|\[disks\]|Mounted |MiniScript interpreter|Loading script|Successfully loaded|Compiling script|Starting script|Script finished|\S+ \S+ raylib-miniscript\[)/;
+	my $status = 0;
+	$SIG{ALRM} = sub {
+		print "simPuzzle: timed out after $limit s\n" unless $status;
+		kill "TERM", $pid;
+		exit($status || 2);
+	};
+	alarm $limit;
+	while (my $line = <$out>) {
+		print $line unless $line =~ $quiet;
+		if ($line =~ /^(Runtime Error|Compiler Error)/ && !$status) {
+			# The stack trace follows the error line; give it a moment.
+			$status = 1;
+			alarm 1;
+		}
+	}
+	close $out;
+	exit($status || ($? >> 8));
+' "${SIM_TIMEOUT:-60}" "$mm/raylib-miniscript" --ignore-prefs -usr "$root/disk" \
+  "$here/sim/sim.ms" "${args[@]}"
