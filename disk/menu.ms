@@ -32,12 +32,10 @@ globals.puzzlePlaying = (k == "P")
 
 nextNum = 1
 options = {}
-dataDir = config.puzzle.dataDir
-names = file.children(dataDir)
-if names == null then names = []    // no data folder yet: nothing saved
+names = file.children(config.puzzle.dir)
+if names == null then names = []    // no puzzles folder yet: nothing saved
 for fname in names
 	if not fname.endsWith(".json") then continue
-	if fname == "current.json" then continue
 	print " " * (nextNum < 10) + nextNum + ". " + (fname - ".json")
 	options[nextNum] = fname
 	nextNum += 1

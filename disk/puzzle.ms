@@ -9,10 +9,11 @@
 // and the extras are the author's to make it harder (red herrings) or easier
 // (another way round).  Extras are kept by palette label; see parts.entryFor.
 //
-// It is one file in the data directory.  Editing works on the whole layout.
-// Playing starts from the same layout with the puzzle parts taken out (see
-// Part.isPuzzle), and everything left is locked where the author put it --
-// the player builds around it, and may tie to it, but may not move it.
+// It is one file in the puzzles folder (config.puzzle.dir).  Editing works
+// on the whole layout.  Playing starts from the same layout with the puzzle
+// parts taken out (see Part.isPuzzle), and everything left is locked where
+// the author put it -- the player builds around it, and may tie to it, but
+// may not move it.
 //
 // Either way the world underneath is the same GameWorld, with the same
 // DESIGN / PLAY / PAUSED modes: testing a puzzle and playtesting one are both
@@ -27,13 +28,15 @@ globals.Puzzle = {}
 Puzzle.make = function(name)
 	pz = new Puzzle
 	pz.name = name
-	pz.path = config.puzzle.dataDir + "/" + name + ".json"
+	pz.path = config.puzzle.dir + "/" + name + ".json"
 	pz.design = []      // the whole layout, as saved parts ({type, spec})
 	pz.playing = false  // set up for the player, rather than for its author
 	pz.extras = {}      // palette label -> extra parts beyond the solution's
 	pz.budget = null    // per catalog index, what the player was handed;
 	                    // see setUp
 	pz.version = 0      // bumped when the extras change; see inventory
+	pz.info = {}        // whatever else the file holds (a title, a goal),
+	                    // kept so that saving does not throw it away
 	return pz
 end function
 
@@ -49,6 +52,10 @@ Puzzle.readFile = function
 	else
 		self.design = data.parts
 		if data.hasIndex("extras") then self.extras = data.extras
+		self.info = {} + data
+		for k in ["version", "parts", "extras"]
+			if self.info.hasIndex(k) then self.info.remove k
+		end for
 	end if
 	return true
 end function
@@ -56,8 +63,8 @@ end function
 // A map rather than a bare list of parts, because the inventory and the win
 // conditions are coming, and will sit beside the parts.
 Puzzle.writeFile = function
-	data = {"version": 1, "parts": self.design, "extras": self.extras}
-	file.makedir config.puzzle.dataDir
+	data = self.info + {"version": 1, "parts": self.design, "extras": self.extras}
+	file.makedir config.puzzle.dir
 	file.writeLines self.path, [json.toJSON(data)]
 end function
 

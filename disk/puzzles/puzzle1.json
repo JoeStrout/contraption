@@ -1,0 +1,549 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "type": "balternator",
+      "spec": {
+        "x": 560,
+        "y": 255,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.4,
+        "bounceSoftSpeed": 0,
+        "length": 160,
+        "thickness": 10,
+        "fulcrumHeight": 30,
+        "pivotFrac": 0,
+        "color": "#C08A4A",
+        "fulcrumColor": "#7A8894",
+        "restitution": 0.1,
+        "density": 1.2,
+        "friction": 0.6,
+        "postWidth": 8,
+        "postHeight": 30,
+        "postDensity": 0.5,
+        "postColor": "#6C7A88",
+        "downSide": 1,
+        "id": 56
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 510,
+        "y": 340,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 60,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 0,
+        "rise": -20,
+        "id": 57
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 630,
+        "y": 350,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 60,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 40,
+        "rise": 40,
+        "id": 58
+      }
+    },
+    {
+      "type": "balternator",
+      "spec": {
+        "x": 660,
+        "y": 575,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.4,
+        "bounceSoftSpeed": 0,
+        "length": 160,
+        "thickness": 10,
+        "fulcrumHeight": 30,
+        "pivotFrac": 0,
+        "color": "#C08A4A",
+        "fulcrumColor": "#7A8894",
+        "restitution": 0.1,
+        "density": 1.2,
+        "friction": 0.6,
+        "postWidth": 8,
+        "postHeight": 30,
+        "postDensity": 0.5,
+        "postColor": "#6C7A88",
+        "downSide": -1,
+        "id": 59,
+        "puzzle": 1
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 340,
+        "y": 570,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 120,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 40,
+        "rise": -40,
+        "id": 61
+      }
+    },
+    {
+      "type": "motor",
+      "spec": {
+        "x": 360,
+        "y": 440,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 12,
+        "color": "#C06038",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "ringRadius": 10,
+        "torque": 3,
+        "freeSpin": 3,
+        "dir": -1,
+        "caseWidth": 60,
+        "caseHeight": 44,
+        "caseColor": "#556270",
+        "id": 71
+      }
+    },
+    {
+      "type": "motor",
+      "spec": {
+        "x": 280,
+        "y": 430,
+        "angle": -0.228158,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 12,
+        "color": "#C06038",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "ringRadius": 10,
+        "torque": 3,
+        "freeSpin": 3,
+        "dir": 1,
+        "caseWidth": 60,
+        "caseHeight": 44,
+        "caseColor": "#556270",
+        "id": 73
+      }
+    },
+    {
+      "type": "outlet",
+      "spec": {
+        "x": 320,
+        "y": 330,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 40,
+        "height": 60,
+        "color": "#E8E0D4",
+        "restitution": 0.2,
+        "friction": 0.6,
+        "id": 74
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 74,
+            "term": 0
+          },
+          {
+            "part": 71,
+            "term": 0
+          }
+        ],
+        "length": 73.904939,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 75
+      }
+    },
+    {
+      "type": "stepPulley",
+      "spec": {
+        "x": 440,
+        "y": 410,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 0,
+        "color": "#9AA4B0",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "radius": 32,
+        "id": 77
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 510,
+        "y": 550,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 60,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 0,
+        "rise": 0,
+        "id": 81
+      }
+    },
+    {
+      "type": "pocketWheel",
+      "spec": {
+        "x": 460,
+        "y": 500,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 0,
+        "color": "#9AA4B0",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "radius": 40,
+        "ringRadius": 8,
+        "mouth": 1.919862,
+        "facing": 0,
+        "id": 83
+      }
+    },
+    {
+      "type": "belt",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "a": 77,
+        "b": 83,
+        "ra": 0,
+        "rb": 0,
+        "color": "#33343C",
+        "id": 84
+      }
+    },
+    {
+      "type": "ball",
+      "spec": {
+        "x": 400,
+        "y": 600,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.2,
+        "bounceSoftSpeed": 150,
+        "radius": 20,
+        "sheet": "ball-bowling",
+        "color": "#202028",
+        "restitution": 0.15,
+        "density": 3,
+        "friction": 0.5,
+        "id": 85
+      }
+    },
+    {
+      "type": "ball",
+      "spec": {
+        "x": 360,
+        "y": 600,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.2,
+        "bounceSoftSpeed": 150,
+        "radius": 20,
+        "sheet": "ball-bowling",
+        "color": "#202028",
+        "restitution": 0.15,
+        "density": 3,
+        "friction": 0.5,
+        "id": 86
+      }
+    },
+    {
+      "type": "ball",
+      "spec": {
+        "x": 320,
+        "y": 620,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.2,
+        "bounceSoftSpeed": 150,
+        "radius": 20,
+        "sheet": "ball-bowling",
+        "color": "#202028",
+        "restitution": 0.15,
+        "density": 3,
+        "friction": 0.5,
+        "id": 87
+      }
+    },
+    {
+      "type": "ball",
+      "spec": {
+        "x": 280,
+        "y": 620,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.2,
+        "bounceSoftSpeed": 150,
+        "radius": 20,
+        "sheet": "ball-bowling",
+        "color": "#202028",
+        "restitution": 0.15,
+        "density": 3,
+        "friction": 0.5,
+        "id": 88
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 74,
+            "term": 1
+          },
+          {
+            "part": 73,
+            "term": 0
+          }
+        ],
+        "length": 114.6219,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 91
+      }
+    },
+    {
+      "type": "outlet",
+      "spec": {
+        "x": 560,
+        "y": 110,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 40,
+        "height": 60,
+        "color": "#E8E0D4",
+        "restitution": 0.2,
+        "friction": 0.6,
+        "id": 92
+      }
+    },
+    {
+      "type": "lamp",
+      "spec": {
+        "x": 519,
+        "y": 165,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "restitution": 0.15,
+        "friction": 0.6,
+        "id": 93
+      }
+    },
+    {
+      "type": "lamp",
+      "spec": {
+        "x": 599,
+        "y": 165,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "restitution": 0.15,
+        "friction": 0.6,
+        "id": 94
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 92,
+            "term": 0
+          },
+          {
+            "part": 56,
+            "term": 1
+          }
+        ],
+        "length": 112.2,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 95
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 56,
+            "term": 2
+          },
+          {
+            "part": 94,
+            "term": 0
+          }
+        ],
+        "length": 89.252146,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 96
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 56,
+            "term": 0
+          },
+          {
+            "part": 93,
+            "term": 1
+          }
+        ],
+        "length": 89.407528,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 97,
+        "puzzle": 1
+      }
+    },
+    {
+      "type": "belt",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "a": 71,
+        "b": 77,
+        "ra": 0,
+        "rb": 2,
+        "color": "#33343C",
+        "id": 98
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 390,
+        "y": 530,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 60,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 0,
+        "rise": 0,
+        "id": 99
+      }
+    }
+  ]
+}

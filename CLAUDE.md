@@ -80,6 +80,7 @@ disk/            mounted as /usr; the game
   artUtil.ms       procedurally drawn art, and its cache
   util.ms          identity-based list operations, and small geometry:
                    unit vectors, point-to-segment, polyline measuring/trimming
+  puzzles/         the puzzles, one .json each; see Puzzles below
   pics/            pre-rendered art: the ball sprite sheets, the balloon,
                    the basket, the scissors' eight poses, the lamp, relay
                    and candle in both states, the radial glow, and the
@@ -142,7 +143,8 @@ on it, so the scissors need not know it is there.
 
 ### Puzzles
 
-A puzzle is one file, `/usr/data/<name>.json` (`{version, parts}`, with the
+A puzzle is one file, `/usr/puzzles/<name>.json` (`disk/puzzles`, committed;
+`disk/data` is the player's and git-ignored) (`{version, parts}`, with the
 inventory and win conditions to come beside `parts`).  Its author lays out
 the *finished* machine and marks the parts the player must supply as
 **puzzle parts** -- `spec.puzzle`, absent rather than false, since it is

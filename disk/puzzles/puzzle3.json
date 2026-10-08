@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "type": "motor",
+      "spec": {
+        "x": 280,
+        "y": 220,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 12,
+        "color": "#C06038",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "ringRadius": 10,
+        "torque": 3,
+        "freeSpin": 3,
+        "dir": -1,
+        "caseWidth": 60,
+        "caseHeight": 44,
+        "caseColor": "#556270",
+        "kind": "Motor (CW)",
+        "id": 52
+      }
+    },
+    {
+      "type": "outlet",
+      "spec": {
+        "x": 160,
+        "y": 190,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 40,
+        "height": 60,
+        "color": "#E8E0D4",
+        "restitution": 0.2,
+        "friction": 0.6,
+        "kind": "Outlet",
+        "id": 53
+      }
+    },
+    {
+      "type": "gearwheel",
+      "spec": {
+        "x": 280,
+        "y": 270,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 18,
+        "color": "#8A94A2",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "ringRadius": 15,
+        "kind": "Gearwheel",
+        "id": 54
+      }
+    },
+    {
+      "type": "wheel",
+      "spec": {
+        "x": 410,
+        "y": 270,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 0,
+        "color": "#9AA4B0",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "radius": 20,
+        "kind": "Small Wheel",
+        "id": 55,
+        "puzzle": 1
+      }
+    },
+    {
+      "type": "spool",
+      "spec": {
+        "x": 570,
+        "y": 350,
+        "angle": -0.261799,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 12,
+        "color": "#8A94A2",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "drumRadius": 10,
+        "wind": 1,
+        "drumColor": "#9A7248",
+        "kind": "Spool",
+        "id": 56
+      }
+    },
+    {
+      "type": "belt",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "a": 54,
+        "b": 55,
+        "ra": 0,
+        "rb": 0,
+        "color": "#33343C",
+        "id": 57
+      }
+    },
+    {
+      "type": "weight",
+      "spec": {
+        "x": 555,
+        "y": 55,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.05,
+        "bounceSoftSpeed": 0,
+        "width": 30,
+        "height": 30,
+        "kg": 1,
+        "color": "#6E7A86",
+        "restitution": 0.05,
+        "friction": 0.7,
+        "kind": "1 kg",
+        "id": 58
+      }
+    },
+    {
+      "type": "rope",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 58,
+            "tie": 0
+          },
+          {
+            "part": 56,
+            "tie": 0
+          }
+        ],
+        "length": 280.401498,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#9A7248",
+        "tail": null,
+        "id": 59
+      }
+    },
+    {
+      "type": "gearwheel",
+      "spec": {
+        "x": 480,
+        "y": 350,
+        "angle": 0.174533,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 18,
+        "color": "#8A94A2",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "ringRadius": 15,
+        "kind": "Gearwheel",
+        "id": 60
+      }
+    },
+    {
+      "type": "belt",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "a": 60,
+        "b": 55,
+        "ra": 0,
+        "rb": 0,
+        "color": "#33343C",
+        "id": 61
+      }
+    },
+    {
+      "type": "wire",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 52,
+            "term": 0
+          },
+          {
+            "part": 53,
+            "term": 0
+          }
+        ],
+        "length": 107.968236,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#C05A18",
+        "tail": null,
+        "slack": 1.1,
+        "id": 62,
+        "puzzle": 1
+      }
+    },
+    {
+      "type": "gear",
+      "spec": {
+        "x": 530,
+        "y": 350,
+        "angle": -8.881784197001252E-16,
+        "linearDamping": 0,
+        "angularDamping": 0.5,
+        "bounceSoftSpeed": 0,
+        "teeth": 12,
+        "color": "#8A94A2",
+        "density": 1.5,
+        "restitution": 0.05,
+        "friction": 0.9,
+        "kind": "Small Gear",
+        "id": 63,
+        "puzzle": 1
+      }
+    }
+  ],
+  "extras": {
+    "Belt": 9
+  }
+}

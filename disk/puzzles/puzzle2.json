@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "type": "weight",
+      "spec": {
+        "x": 535,
+        "y": 55,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.05,
+        "bounceSoftSpeed": 0,
+        "width": 30,
+        "height": 30,
+        "kg": 1,
+        "color": "#6E7A86",
+        "restitution": 0.05,
+        "friction": 0.7,
+        "id": 177
+      }
+    },
+    {
+      "type": "balloon",
+      "spec": {
+        "x": 542,
+        "y": 270,
+        "angle": 0,
+        "linearDamping": 16,
+        "angularDamping": 8,
+        "bounceSoftSpeed": 0,
+        "width": 44,
+        "height": 60,
+        "color": "#FF4444",
+        "density": 0.1,
+        "airDensity": 0.6,
+        "liftRise": 0.125,
+        "restitution": 0.05,
+        "friction": 0.7,
+        "id": 178
+      }
+    },
+    {
+      "type": "rope",
+      "spec": {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "points": [
+          {
+            "part": 178,
+            "tie": 0
+          },
+          {
+            "part": 177,
+            "tie": 0
+          }
+        ],
+        "length": 170.144057,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "color": "#9A7248",
+        "tail": null,
+        "id": 179
+      }
+    },
+    {
+      "type": "scissors",
+      "spec": {
+        "x": 521,
+        "y": 135,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "restitution": 0.1,
+        "friction": 0.6,
+        "closeTime": 0.533333,
+        "triggerImpulse": 1500,
+        "id": 180
+      }
+    },
+    {
+      "type": "ball",
+      "spec": {
+        "x": 340,
+        "y": 360,
+        "angle": 0,
+        "linearDamping": 0.02,
+        "angularDamping": 0.2,
+        "bounceSoftSpeed": 150,
+        "radius": 20,
+        "sheet": "ball-bowling",
+        "color": "#202028",
+        "restitution": 0.15,
+        "density": 3,
+        "friction": 0.5,
+        "id": 181
+      }
+    },
+    {
+      "type": "platform",
+      "spec": {
+        "x": 360,
+        "y": 320,
+        "angle": 0,
+        "linearDamping": 0,
+        "angularDamping": 0,
+        "bounceSoftSpeed": 0,
+        "width": 120,
+        "height": 20,
+        "color": "#7A8894",
+        "restitution": 0.2,
+        "friction": 0.7,
+        "stretch": 0,
+        "rise": -20,
+        "id": 182,
+        "puzzle": 1
+      }
+    }
+  ],
+  "extras": {
+    "Platform": 1,
+    "Ledge": 2,
+    "Plank": 2,
+    "Block": 2
+  }
+}

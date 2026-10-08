@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "title": "Heavy Lifting",
+  "goal": "Lift the 5 kg weight off the floor.",
+  "parts": [
+    {
+      "type": "weight",
+      "spec": {
+        "id": 1,
+        "kind": "5 kg",
+        "x": 205,
+        "y": 65,
+        "width": 50,
+        "height": 50,
+        "kg": 5
+      }
+    },
+    {
+      "type": "tiepoint",
+      "spec": {
+        "id": 2,
+        "kind": "Tie Point",
+        "x": 100,
+        "y": 520
+      }
+    },
+    {
+      "type": "tiepoint",
+      "spec": {
+        "id": 3,
+        "kind": "Tie Point",
+        "x": 320,
+        "y": 520
+      }
+    },
+    {
+      "type": "mountedPulley",
+      "spec": {
+        "id": 4,
+        "kind": "Mounted Pulley",
+        "x": 320,
+        "y": 520,
+        "host": 3,
+        "tie": 0
+      }
+    },
+    {
+      "type": "mountedPulley",
+      "spec": {
+        "id": 5,
+        "kind": "Mounted Pulley",
+        "x": 205,
+        "y": 90,
+        "host": 1,
+        "tie": 0,
+        "puzzle": true
+      }
+    },
+    {
+      "type": "weight",
+      "spec": {
+        "id": 6,
+        "kind": "3 kg",
+        "x": 320,
+        "y": 320,
+        "width": 40,
+        "height": 40,
+        "kg": 3,
+        "puzzle": true
+      }
+    },
+    {
+      "type": "rope",
+      "spec": {
+        "id": 7,
+        "kind": "Rope",
+        "points": [
+          {
+            "part": 2,
+            "tie": 0
+          },
+          {
+            "part": 5,
+            "tie": 0
+          },
+          {
+            "part": 4,
+            "tie": 0
+          },
+          {
+            "part": 6,
+            "tie": 0
+          }
+        ],
+        "length": 1067.747,
+        "fixedLength": 0,
+        "freeEnd": 0,
+        "tail": null
+      }
+    }
+  ],
+  "extras": {
+    "1 kg": 2,
+    "Rope": 1,
+    "Pulley": 1,
+    "Balloon": 1
+  }
+}

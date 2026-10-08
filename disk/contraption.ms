@@ -33,7 +33,7 @@
 // testing it.
 //   P                       mark the selected part as a puzzle part (one the
 //                           player must supply; shown faded), or unmark it
-//   S                       save the puzzle, to /usr/data/<name>.json
+//   S                       save the puzzle, to /usr/puzzles/<name>.json
 //   R                       swap between laying the puzzle out and playing
 //                           it -- the board without its puzzle parts, and
 //                           everything left on it locked in place.  Only
